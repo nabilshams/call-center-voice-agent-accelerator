@@ -3,31 +3,51 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Voice Live Agent Demo</title>
+  <title>MMH Cyber Incident Support Line</title>
   <style>
     body {
       margin: 0;
       padding: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f0f4f8;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      color: #333;
+      min-height: 100vh;
+      color: #e0e0e0;
       text-align: center;
+      padding: 1rem;
+    }
+
+    .header-icon {
+      font-size: 3rem;
+      margin-bottom: 0.5rem;
     }
 
     h1 {
-      font-size: 2rem;
-      margin-bottom: 1.2rem;
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+      color: #fff;
     }
 
     .subtitle {
       font-size: 1rem;
-      color: #555;
-      margin-bottom: 2rem;
+      color: #a0a0a0;
+      margin-bottom: 1.5rem;
+      max-width: 500px;
+      line-height: 1.5;
+    }
+
+    .alert-banner {
+      background: rgba(255, 193, 7, 0.15);
+      border: 1px solid #ffc107;
+      border-radius: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      margin-bottom: 1.5rem;
+      max-width: 500px;
+      font-size: 0.9rem;
+      color: #ffc107;
     }
 
     .controls {
@@ -43,26 +63,67 @@
       border: none;
       border-radius: 0.5rem;
       cursor: pointer;
-      transition: background 0.3s ease;
+      transition: all 0.3s ease;
+      font-weight: 500;
     }
 
     #startBtn {
-      background-color: #0078d4;
+      background-color: #00a67d;
       color: white;
+      box-shadow: 0 4px 15px rgba(0, 166, 125, 0.3);
     }
 
     #startBtn:hover {
-      background-color: #005ea0;
+      background-color: #008c6a;
+      transform: translateY(-2px);
+    }
+
+    #startBtn:disabled {
+      background-color: #4a5568;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
     }
 
     #stopBtn {
-      background-color: #e81123;
+      background-color: #e53e3e;
       color: white;
     }
 
+    #stopBtn:hover:not(:disabled) {
+      background-color: #c53030;
+    }
+
     #stopBtn:disabled {
-      background-color: #f3b2b2;
+      background-color: #4a5568;
       cursor: not-allowed;
+    }
+
+    .info-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-top: 1.5rem;
+      max-width: 450px;
+      text-align: left;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+
+    .info-box h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.95rem;
+      color: #00a67d;
+    }
+
+    .info-box ul {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .info-box li {
+      margin-bottom: 0.25rem;
     }
 
     audio {
@@ -71,24 +132,70 @@
     }
 
     footer {
-      position: absolute;
+      position: fixed;
       bottom: 1rem;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: #666;
+    }
+
+    footer a {
+      color: #00a67d;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    .nav-link {
+      margin-top: 1.5rem;
+    }
+
+    .nav-link a {
+      color: #00a67d;
+      text-decoration: none;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: color 0.2s ease;
+    }
+
+    .nav-link a:hover {
+      color: #00d9a0;
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
-  <h1>🎙️ Voice Live Demo UX</h1>
-  <div class="subtitle">Talk to an AI agent in real time. Click below to start.</div>
+  <div class="header-icon">🛡️</div>
+  <h1>Manage My Health - Incident Support</h1>
+  <div class="subtitle">
+    24/7 voice assistance for questions about the December 2025 cybersecurity incident affecting Manage My Health (MMH).
+  </div>
+
+  <div class="alert-banner">
+    ⚠️ This assistant provides guidance only. For urgent medical concerns, contact your GP or call 111.
+  </div>
 
   <div class="controls">
-    <button id="startBtn" onclick="startStreaming()" title="Start talking to the voice agent">
-      Start Talking to Agent
+    <button id="startBtn" onclick="startStreaming()" title="Start talking to the support assistant">
+      🎙️ Speak to Support Assistant
     </button>
-    <button id="stopBtn" onclick="stopStreaming()" disabled title="End the conversation with the agent">
-      Stop Conversation
+    <button id="stopBtn" onclick="stopStreaming()" disabled title="End the conversation">
+      End Call
     </button>
+  </div>
+
+  <div class="info-box">
+    <h3>I can help you with:</h3>
+    <ul>
+      <li>Checking if your account was affected</li>
+      <li>Understanding what data may have been accessed</li>
+      <li>Steps to secure your account</li>
+      <li>How to report suspicious activity</li>
+      <li>Official resources and support contacts</li>
+    </ul>
   </div>
 
   <!-- Ambient Scene: Backend handles ambient mixing via AMBIENT_PRESET env var -->
@@ -96,7 +203,7 @@
   <audio id="ttsPlayer" autoplay></audio>
 
   <footer>
-    Powered by Azure Voice Live • Demo Mode
+    Powered by Azure Voice Live • <a href="https://managemyhealth.co.nz/faqs-cyber-breach/" target="_blank">Official MMH FAQs</a>
   </footer>
 
   <script>

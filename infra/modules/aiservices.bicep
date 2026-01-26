@@ -2,7 +2,7 @@ param environmentName string
 param uniqueSuffix string
 param identityId string
 param tags object
-param disableLocalAuth bool = true
+param disableLocalAuth bool = false  // Enable local auth for Speech SDK compatibility
 
 // Voice live api only supported on two regions now 
 var location string = 'swedencentral'

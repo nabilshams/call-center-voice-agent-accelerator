@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import uuid
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -13,37 +14,67 @@ from websockets.asyncio.client import connect as ws_connect
 from websockets.typing import Data
 
 from .ambient_mixer import AmbientMixer
+from .personas import get_random_persona, build_persona_prompt, Persona
+from .transcription_storage import TranscriptionStorage
 
 logger = logging.getLogger(__name__)
 
 # Default chunk size in bytes (100ms of audio at 24kHz, 16-bit mono)
 DEFAULT_CHUNK_SIZE = 4800  # 24000 samples/sec * 0.1 sec * 2 bytes
 
+# Path to system prompt file
+SYSTEM_PROMPT_FILE = Path(__file__).parent.parent.parent / "prompts" / "system_prompt.txt"
 
-def session_config():
-    """Returns the default session configuration for Voice Live."""
+
+def load_system_prompt() -> str:
+    """Load the system prompt from the external file."""
+    try:
+        prompt = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8").strip()
+        logger.info(f"[VoiceLiveACSHandler] Loaded system prompt from: {SYSTEM_PROMPT_FILE}")
+        logger.info(f"[VoiceLiveACSHandler] System prompt length: {len(prompt)} chars")
+        logger.info(f"[VoiceLiveACSHandler] System prompt preview: {prompt[:200]}...")
+        return prompt
+    except FileNotFoundError:
+        logger.warning(f"System prompt file not found: {SYSTEM_PROMPT_FILE}, using default")
+        return "You are a helpful AI assistant responding in natural, engaging language."
+    except Exception as e:
+        logger.error(f"Error loading system prompt: {e}, using default")
+        return "You are a helpful AI assistant responding in natural, engaging language."
+
+
+def session_config(persona: Persona):
+    """Returns the session configuration for Voice Live with the given persona.
+    
+    Args:
+        persona: The persona to use for this session
+    """
+    base_prompt = load_system_prompt()
+    personalized_prompt = build_persona_prompt(persona, base_prompt)
+    
+    logger.info(f"[VoiceLiveACSHandler] Session persona: {persona['name']} (voice: {persona['voice']})")
+    
     return {
         "type": "session.update",
         "session": {
-            "instructions": "You are a helpful AI assistant responding in natural, engaging language.",
+            "instructions": personalized_prompt,
             "turn_detection": {
                 "type": "azure_semantic_vad",
-                "threshold": 0.3,
-                "prefix_padding_ms": 200,
-                "silence_duration_ms": 200,
+                "threshold": 0.5,  # Higher = faster detection of speech end
+                "prefix_padding_ms": 100,  # Reduced from 200
+                "silence_duration_ms": 150,  # Reduced from 200 - faster response after silence
                 "remove_filler_words": False,
                 "end_of_utterance_detection": {
                     "model": "semantic_detection_v1",
-                    "threshold": 0.01,
-                    "timeout": 2,
+                    "threshold": 0.05,  # Increased from 0.01 - faster end detection
+                    "timeout": 1,  # Reduced from 2 seconds
                 },
             },
             "input_audio_noise_reduction": {"type": "azure_deep_noise_suppression"},
             "input_audio_echo_cancellation": {"type": "server_echo_cancellation"},
             "voice": {
-                "name": "en-US-Aria:DragonHDLatestNeural",
+                "name": persona["voice"],
                 "type": "azure-standard",
-                "temperature": 0.8,
+                "temperature": 0.6,  # Reduced from 0.8 - faster, more predictable responses
             },
         },
     }
@@ -58,6 +89,7 @@ class ACSMediaHandler:
         self.api_key = config["AZURE_VOICE_LIVE_API_KEY"]
         self.client_id = config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"]
         self.send_queue = asyncio.Queue()
+        self.persona: Optional[Persona] = None  # Selected persona for this session
         self.ws = None
         self.send_task = None
         self.incoming_websocket = None
@@ -80,11 +112,18 @@ class ACSMediaHandler:
             except Exception as e:
                 logger.error(f"Failed to initialize AmbientMixer: {e}")
 
+        # Transcription storage for cybersecurity support agent conversations
+        self._transcription_storage = TranscriptionStorage(storage_type="cybersecurity_agent")
+
     def _generate_guid(self):
         return str(uuid.uuid4())
 
     async def connect(self):
         """Connects to Azure Voice Live API via WebSocket."""
+        # Select a random persona for this session
+        self.persona = get_random_persona()
+        logger.info(f"[VoiceLiveACSHandler] Selected persona: {self.persona['name']}")
+        
         endpoint = self.endpoint.rstrip("/")
         model = self.model.strip()
         url = f"{endpoint}/voice-live/realtime?api-version=2025-05-01-preview&model={model}"
@@ -106,8 +145,11 @@ class ACSMediaHandler:
         self.ws = await ws_connect(url, additional_headers=headers)
         logger.info("[VoiceLiveACSHandler] Connected to Voice Live API")
 
-        await self._send_json(session_config())
+        await self._send_json(session_config(self.persona))
         await self._send_json({"type": "response.create"})
+
+        # Start transcription storage with persona name
+        self._transcription_storage.start_conversation()
 
         asyncio.create_task(self._receiver_loop())
         self.send_task = asyncio.create_task(self._sender_loop())
@@ -166,6 +208,9 @@ class ACSMediaHandler:
                     case "conversation.item.input_audio_transcription.completed":
                         transcript = event.get("transcript")
                         logger.info("User: %s", transcript)
+                        # Save user message to transcription storage
+                        if transcript:
+                            self._transcription_storage.add_user_message(transcript)
 
                     case "conversation.item.input_audio_transcription.failed":
                         error_msg = event.get("error")
@@ -186,6 +231,10 @@ class ACSMediaHandler:
                         await self.send_message(
                             json.dumps({"Kind": "Transcription", "Text": transcript})
                         )
+                        # Save agent message to transcription storage with persona name
+                        if transcript:
+                            agent_name = self.persona["name"] if self.persona else None
+                            self._transcription_storage.add_agent_message(transcript, agent_name)
 
                     case "response.audio.delta":
                         delta = event.get("delta")
@@ -373,3 +422,23 @@ class ACSMediaHandler:
         # Forward to Voice Live
         audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
         await self.audio_to_voicelive(audio_b64)
+
+    async def stop_audio_output(self):
+        """Clean up and save transcription when connection ends."""
+        try:
+            # Stop the sender task if running
+            if self.send_task:
+                self.send_task.cancel()
+                self.send_task = None
+            
+            # Close the WebSocket connection to Voice Live
+            if self.ws:
+                await self.ws.close()
+                self.ws = None
+            
+            # Save the transcription
+            self._transcription_storage.end_conversation()
+            
+            logger.info("[VoiceLiveACSHandler] Audio output stopped and transcription saved")
+        except Exception:
+            logger.exception("[VoiceLiveACSHandler] Error stopping audio output")

@@ -42,6 +42,7 @@ RUN uv sync --frozen --no-dev --no-install-project --no-editable --all-packages
 COPY *.py *.md /app/
 COPY app /app/app/
 COPY static /app/static/
+COPY prompts /app/prompts/
 
 ###############
 # Final image #

@@ -4,6 +4,7 @@ import os
 
 from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
+from app.handler.speech_transcription_handler import SpeechTranscriptionHandler
 from dotenv import load_dotenv
 from quart import Quart, request, websocket
 
@@ -22,6 +23,12 @@ app.config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"] = os.getenv(
 # Ambient Scenes Configuration
 # Options: none, office, call_center (or custom presets)
 app.config["AMBIENT_PRESET"] = os.getenv("AMBIENT_PRESET", "none")
+
+# Speech Transcription Configuration (separate from Voice Live)
+app.config["AZURE_SPEECH_KEY"] = os.getenv("AZURE_SPEECH_KEY", "")
+app.config["AZURE_SPEECH_REGION"] = os.getenv("AZURE_SPEECH_REGION", "")
+app.config["AZURE_SPEECH_ENDPOINT"] = os.getenv("AZURE_SPEECH_ENDPOINT", "")
+app.config["AZURE_SPEECH_RESOURCE_ID"] = os.getenv("AZURE_SPEECH_RESOURCE_ID", "")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s"
@@ -97,6 +104,46 @@ async def web_ws():
 async def index():
     """Serves the static index page."""
     return await app.send_static_file("index.html")
+
+
+# ============================================================================
+# TRANSCRIPTION FEATURE (Separate from Voice Agent)
+# ============================================================================
+
+@app.route("/transcription")
+async def transcription_page():
+    """Serves the transcription UI page."""
+    return await app.send_static_file("transcription.html")
+
+
+@app.websocket("/transcription/ws")
+async def transcription_ws():
+    """WebSocket endpoint for real-time speech transcription.
+    
+    This is a standalone transcription feature using Azure Speech SDK,
+    completely separate from the Voice Live agent functionality.
+    """
+    logger = logging.getLogger("transcription_ws")
+    logger.info("Incoming transcription WebSocket connection")
+    
+    handler = SpeechTranscriptionHandler(app.config)
+    await handler.init_websocket(websocket)
+    
+    try:
+        await handler.start()
+        
+        while True:
+            msg = await websocket.receive()
+            if isinstance(msg, bytes):
+                await handler.process_audio(msg)
+                
+    except asyncio.CancelledError:
+        logger.info("Transcription WebSocket cancelled")
+    except Exception:
+        logger.exception("Transcription WebSocket connection closed")
+    finally:
+        await handler.stop()
+
 
 
 if __name__ == "__main__":

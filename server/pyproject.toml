@@ -18,8 +18,14 @@ dependencies = [
     "azure-communication-callautomation>=1.4.0",
     "openai[realtime]>=1.93.0",
     "h2>=4.3.0",
-    "numpy>=1.24.0"
+    "numpy>=1.24.0",
+    "azure-cognitiveservices-speech>=1.40.0",
+    "azure-storage-blob>=12.24.0"
 ]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["static*"]
 
 [tool.uv]
 # Define the virtual environment location for uv

@@ -92,6 +92,21 @@ module acs 'modules/acs.bicep' = {
   }
 }
 
+// Storage Account for transcriptions
+module storage 'modules/storage.bicep' = {
+  name: 'storage-deployment'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    tags: tags
+    identityPrincipalId: appIdentity.outputs.principalId
+    deployerPrincipalId: principalId
+  }
+  dependsOn: [ appIdentity ]
+}
+
 var keyVaultName = toLower(replace('kv-${environmentName}-${uniqueSuffix}', '_', '-'))
 var sanitizedKeyVaultName = take(toLower(replace(replace(replace(replace(keyVaultName, '--', '-'), '_', '-'), '[^a-zA-Z0-9-]', ''), '-$', '')), 24)
 module keyvault 'modules/keyvault.bicep' = {
@@ -131,12 +146,17 @@ module containerapp 'modules/containerapp.bicep' = {
     identityClientId: appIdentity.outputs.clientId
     containerRegistryName: registry.outputs.name
     aiServicesEndpoint: aiServices.outputs.aiServicesEndpoint
+    aiServicesResourceId: aiServices.outputs.aiServicesId
     modelDeploymentName: modelName
     acsConnectionStringSecretUri: keyvault.outputs.acsConnectionStringUri
     logAnalyticsWorkspaceName: logAnalyticsName
     imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+    speechRegion: location
+    storageAccountName: storage.outputs.storageAccountName
+    storageBlobEndpoint: storage.outputs.primaryBlobEndpoint
+    transcriptsContainerName: storage.outputs.transcriptsContainerName
   }
-  dependsOn: [keyvault, RoleAssignments]
+  dependsOn: [keyvault, RoleAssignments, storage]
 }
 
 
@@ -151,3 +171,8 @@ output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.outputs.loginServer
 output SERVICE_API_ENDPOINTS array = ['${containerapp.outputs.containerAppFqdn}/acs/incomingcall']
 output AZURE_VOICE_LIVE_ENDPOINT string = aiServices.outputs.aiServicesEndpoint
 output AZURE_VOICE_LIVE_MODEL string = modelName
+
+// Storage Account outputs for transcription storage
+output AZURE_STORAGE_ACCOUNT_NAME string = storage.outputs.storageAccountName
+output AZURE_STORAGE_BLOB_ENDPOINT string = storage.outputs.primaryBlobEndpoint
+output AZURE_TRANSCRIPTS_CONTAINER string = storage.outputs.transcriptsContainerName

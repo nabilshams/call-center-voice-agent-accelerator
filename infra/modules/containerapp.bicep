@@ -7,11 +7,20 @@ param identityId string
 param identityClientId string
 param containerRegistryName string
 param aiServicesEndpoint string
+param aiServicesResourceId string = ''
 param modelDeploymentName string
 param acsConnectionStringSecretUri string
 param logAnalyticsWorkspaceName string
 @description('The name of the container image')
 param imageName string = ''
+@description('The region for Azure Speech Service (same as AI Services)')
+param speechRegion string = location
+@description('Azure Storage Account name for transcriptions')
+param storageAccountName string = ''
+@description('Azure Storage Blob endpoint for transcriptions')
+param storageBlobEndpoint string = ''
+@description('Azure Storage container name for transcripts')
+param transcriptsContainerName string = 'transcripts'
 
 // Helper to sanitize environmentName for valid container app name
 var sanitizedEnvName = toLower(replace(replace(replace(replace(environmentName, ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))
@@ -98,8 +107,28 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
               secretRef: 'acs-connection-string'
             }
             {
+              name: 'AZURE_SPEECH_REGION'
+              value: speechRegion
+            }
+            {
+              name: 'AZURE_SPEECH_RESOURCE_ID'
+              value: aiServicesResourceId
+            }
+            {
               name: 'DEBUG_MODE'
               value: 'true'
+            }
+            {
+              name: 'AZURE_STORAGE_ACCOUNT_NAME'
+              value: storageAccountName
+            }
+            {
+              name: 'AZURE_STORAGE_BLOB_ENDPOINT'
+              value: storageBlobEndpoint
+            }
+            {
+              name: 'AZURE_TRANSCRIPTS_CONTAINER'
+              value: transcriptsContainerName
             }
           ]
           resources: {
