@@ -208,8 +208,12 @@ class ACSMediaHandler:
                     case "conversation.item.input_audio_transcription.completed":
                         transcript = event.get("transcript")
                         logger.info("User: %s", transcript)
-                        # Save user message to transcription storage
+                        # Send user transcription to frontend
                         if transcript:
+                            await self.send_message(
+                                json.dumps({"Kind": "UserTranscription", "Text": transcript})
+                            )
+                            # Save user message to transcription storage
                             self._transcription_storage.add_user_message(transcript)
 
                     case "conversation.item.input_audio_transcription.failed":
