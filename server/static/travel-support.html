@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Travel Booking and Reservations Assistant</title>
+  <!-- Theme (colors/branding) — swap this file to re-theme the page -->
+  <link rel="stylesheet" href="/static/theme-wanderlux.css" />
+  <!-- Structure (layout/components) — theme-agnostic -->
+  <link rel="stylesheet" href="/static/travel-support.css" />
+</head>
+<body>
+  <main class="shell">
+    <aside class="side-panel">
+      <div class="header-icon">Wanderlux</div>
+      <span class="side-section-title">Workflow Routing</span>
+      <p class="side-intro">
+        Live view of how each spoken request is routed through the travel agent workflow.
+      </p>
+
+      <div class="orchestration-panel" id="orchestrationPanel">
+        <div class="orch-log-head">
+          <strong>Routing Log</strong>
+          <button type="button" id="orchClearLog" title="Clear routing log">Clear log</button>
+        </div>
+        <div class="orch-log" id="orchLog">
+          <div class="orch-empty" id="orchEmpty">
+            No routing data yet. Start the assistant and speak to see the selected agents and route.
+          </div>
+        </div>
+        <div class="orch-resize-hint">drag edge to resize</div>
+      </div>
+
+      <div class="info-box">
+        <h3>I can help you with:</h3>
+        <ul>
+          <li>Planning one-way or round-trip flights</li>
+          <li>Comparing hotel options by budget and amenities</li>
+          <li>Summarizing itinerary options and trade-offs</li>
+          <li>Collecting details needed to finalize reservations</li>
+          <li>Preparing next steps before booking</li>
+        </ul>
+      </div>
+
+      <div class="nav-link">
+        <a href="/travel-chat">Open Travel Chat Assistant</a>
+        <button type="button" id="demoBtn">Travel Agency Demo Script</button>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <h1>Flight and Hotel Reservations Assistant</h1>
+      <div class="subtitle">
+        Voice assistant for planning trips, comparing flight and hotel options, and preparing booking-ready itineraries.
+      </div>
+
+      <div class="alert-banner">
+        This assistant provides planning guidance and option summaries. Always confirm price and availability before payment.
+      </div>
+
+      <div class="transport-toggle">
+        <span class="toggle-label active" id="labelWs">WebSocket</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="transportToggle" />
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label" id="labelWebrtc">WebRTC</span>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn" onclick="startStreaming()" title="Start speaking to travel assistant">
+          Start Travel Assistant
+        </button>
+        <button id="stopBtn" onclick="stopStreaming()" disabled title="End the conversation">
+          End Call
+        </button>
+      </div>
+
+      <div class="transcription-panel" id="transcriptionPanel">
+        <div class="transcription-header">
+          <h3>Live Conversation</h3>
+          <button onclick="clearTranscription()" title="Clear conversation history">Clear</button>
+        </div>
+        <div class="transcription-messages" id="transcriptionMessages"></div>
+      </div>
+
+      <footer>
+        Powered by Azure Voice Live
+      </footer>
+    </section>
+  </main>
+
+  <section class="demo-panel" id="demoPanel" aria-label="Demo script" hidden>
+    <header class="demo-panel-header" id="demoPanelHeader">
+      <h2 class="demo-panel-title">Travel Agency Demo Script</h2>
+      <div class="demo-panel-tools">
+        <button type="button" class="demo-tool" id="demoEditBtn" title="Edit script">Edit</button>
+        <button type="button" class="demo-close" id="demoCloseBtn" aria-label="Close demo script">&times;</button>
+      </div>
+    </header>
+    <p class="demo-intro">
+      Drag this window anywhere. Read a line aloud to the assistant, or use
+      <strong>Copy</strong> to grab it. Switch to <strong>Edit</strong> to add,
+      change, or remove items, then <strong>Save</strong>.
+    </p>
+
+    <div class="demo-body" id="demoBody"></div>
+
+    <footer class="demo-panel-footer">
+      <span class="demo-status" id="demoStatus"></span>
+      <div class="demo-footer-actions">
+        <button type="button" class="demo-secondary" id="demoAddSectionBtn" hidden>Add section</button>
+        <button type="button" class="demo-secondary" id="demoResetBtn">Reset</button>
+        <button type="button" class="demo-primary" id="demoSaveBtn" hidden>Save</button>
+        <button type="button" class="demo-primary" id="demoCopyAllBtn">Copy all</button>
+      </div>
+    </footer>
+  </section>
+
+  <script>
+    let mediaStream, source, processor, socket;
+    let audioContext = new AudioContext({ sampleRate: 24000 });
+    let workletNode;
+    let lastOrchestratedText = '';
+    // Accumulated dialogue turns ({role, text}) for memory-aware orchestrator routing.
+    let conversationHistory = [];
+
+    async function loadAudioProcessor() {
+      await audioContext.audioWorklet.addModule('/static/audio-processor.js');
+      workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+      workletNode.connect(audioContext.destination);
+    }
+
+    async function playAudio(arrayBuffer) {
+      if (audioContext.state === 'suspended') await audioContext.resume();
+      const int16 = new Int16Array(arrayBuffer);
+      const float32 = new Float32Array(int16.length);
+      for (let i = 0; i < int16.length; i++) {
+        float32[i] = int16[i] / (int16[i] < 0 ? 0x8000 : 0x7FFF);
+      }
+      workletNode.port.postMessage({ pcm: float32 });
+    }
+
+    function stopPlayback() {
+      if (workletNode) workletNode.port.postMessage({ clear: true });
+    }
+
+    function float32ToInt16(float32Array) {
+      const int16 = new Int16Array(float32Array.length);
+      for (let i = 0; i < float32Array.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Array[i]));
+        int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return int16;
+    }
+
+    async function startMicrophone() {
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      source = audioContext.createMediaStreamSource(mediaStream);
+      processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+      processor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0);
+        const pcm = float32ToInt16(input);
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(pcm.buffer);
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+    }
+
+    function stopMicrophone() {
+      if (processor && typeof processor.disconnect === 'function') {
+        processor.disconnect();
+        processor = null;
+      }
+      if (mediaStream && mediaStream.getTracks) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+    }
+
+    function stopStreaming() {
+      if (socket) socket.close();
+    }
+
+    async function callTravelOrchestrator(userText) {
+      if (!userText || !userText.trim()) return;
+      if (userText === lastOrchestratedText) return;
+      lastOrchestratedText = userText;
+
+      try {
+        const response = await fetch('/travel/orchestrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userText,
+            context: {
+              channel: 'voice-web',
+              source: 'travel-support-ui',
+              timestamp: new Date().toISOString(),
+              // Prior turns (excluding the current one) so routing is memory-aware.
+              history: conversationHistory.slice(0, -1).slice(-12),
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const details = await response.text();
+          console.warn('Orchestrator request failed', response.status, details);
+          return;
+        }
+
+        const data = await response.json();
+        renderOrchestrationDetails(data, userText, conversationHistory.slice(0, -1).slice(-12).length);
+      } catch (error) {
+        console.warn('Orchestrator call error', error);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function buildRoutingTree(data, userText, memoryTurns) {
+      const trace = Array.isArray(data.workflow_trace) ? data.workflow_trace : [];
+      const outputs = Array.isArray(data.specialist_outputs) ? data.specialist_outputs : [];
+      const outputByAgent = {};
+      outputs.forEach((o) => {
+        if (o && o.agent) outputByAgent[o.agent] = o;
+      });
+
+      const orchestrator = trace[0] || { node: 'Orchestrator' };
+      const specialists = trace.slice(1);
+
+      const conf = (c) =>
+        typeof c === 'number' ? `<span class="route-conf">${c.toFixed(2)}</span>` : '';
+
+      // Child list that hangs under a node.
+      const sub = (rows) =>
+        rows.length ? `<ul class="route-tree route-children">${rows.join('')}</ul>` : '';
+
+      const metaLeaf = (label, value, cls = '') =>
+        `<li class="route-node route-meta-leaf ${cls}"><span class="route-key">${escapeHtml(label)}:</span> ${value}</li>`;
+
+      const textLeaf = (label, value, cls = '') =>
+        `<li class="route-node route-meta-leaf ${cls}">` +
+        `<span class="route-key">${escapeHtml(label)}:</span>` +
+        `<div class="route-text">${escapeHtml(value)}</div></li>`;
+
+      // --- Orchestrator children: route info + rationale ---
+      const orchRows = [];
+      if (orchestrator.route) orchRows.push(metaLeaf('route', `<code>${escapeHtml(orchestrator.route)}</code>`));
+      if (Array.isArray(orchestrator.routes)) orchRows.push(metaLeaf('routes', `<code>${escapeHtml(orchestrator.routes.join(' + '))}</code>`));
+      if (typeof orchestrator.parallel_agents === 'number') orchRows.push(metaLeaf('parallel', String(orchestrator.parallel_agents)));
+      if (orchestrator.rationale) orchRows.push(textLeaf('why', orchestrator.rationale, 'route-rationale'));
+
+      // --- Specialist agents (each with summary + missing fields) ---
+      specialists.forEach((s) => {
+        const out = outputByAgent[s.node] || {};
+        const missing = Array.isArray(out.missing_fields) ? out.missing_fields : [];
+        const agentChildren = [];
+        if (out.summary) agentChildren.push(textLeaf('summary', out.summary));
+        if (missing.length) agentChildren.push(metaLeaf('missing', escapeHtml(missing.join(', ')), 'route-missing'));
+        orchRows.push(
+          `<li class="route-node">` +
+          `<span class="route-label">${escapeHtml(s.node)}</span> ${conf(s.confidence)}` +
+          sub(agentChildren) +
+          `</li>`
+        );
+      });
+      if (!specialists.length) {
+        orchRows.push(`<li class="route-node"><span class="route-muted">no specialist routed</span></li>`);
+      }
+
+      // --- Top-level tree ---
+      const rows = [];
+      if (userText) {
+        const memoryLeaf = memoryTurns
+          ? `<div class="route-meta-leaf route-memory"><span class="route-key">context:</span> ${memoryTurns} prior turn${memoryTurns === 1 ? '' : 's'} remembered</div>`
+          : '';
+        rows.push(
+          `<li class="route-node route-request">` +
+          `<span class="route-label">Request</span>` +
+          `<div class="route-message">"${escapeHtml(userText)}"</div>` +
+          memoryLeaf +
+          `</li>`
+        );
+      }
+      rows.push(
+        `<li class="route-node route-root">` +
+        `<span class="route-label">${escapeHtml(orchestrator.node || 'Orchestrator')}</span> ${conf(orchestrator.confidence)}` +
+        sub(orchRows) +
+        `</li>`
+      );
+
+      // --- Outcome leaves ---
+      if (typeof data.confidence === 'number') rows.push(metaLeaf('overall confidence', conf(data.confidence)));
+      if (data.next_step) rows.push(metaLeaf('next step', `<code>${escapeHtml(data.next_step)}</code>`));
+      if (data.spoken_reply) rows.push(textLeaf('reply', data.spoken_reply, 'route-reply'));
+      if (data.clarification_question) rows.push(textLeaf('clarification', data.clarification_question, 'route-clar'));
+      const runtime = data.maf_runtime;
+      if (runtime) rows.push(metaLeaf('runtime', `<code>${escapeHtml(runtime)}</code>`));
+      if (data.orchestrator_mode) rows.push(metaLeaf('mode', `<code>${escapeHtml(data.orchestrator_mode)}</code>`));
+
+      return `<ul class="route-tree">${rows.join('')}</ul>`;
+    }
+
+    function renderOrchestrationDetails(data, userText, memoryTurns) {
+      const log = document.getElementById('orchLog');
+      if (!log) return;
+
+      const empty = document.getElementById('orchEmpty');
+      if (empty) empty.remove();
+
+      const agents = Array.isArray(data.selected_agents) ? data.selected_agents : [];
+      const agentsLabel = agents.length ? agents.join(', ') : 'none';
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      // Collapse older entries so the newest is the only one expanded.
+      log.querySelectorAll('details.route-entry[open]').forEach((el) => el.removeAttribute('open'));
+
+      const entry = document.createElement('details');
+      entry.className = 'route-entry';
+      entry.open = true;
+      entry.innerHTML =
+        `<summary class="route-entry-head">` +
+        `<span class="route-time">${escapeHtml(time)}</span>` +
+        `<span class="route-head-agent">${escapeHtml(agentsLabel)}</span>` +
+        `</summary>` +
+        `<div class="route-entry-body">` +
+        buildRoutingTree(data, userText, memoryTurns) +
+        `</div>`;
+
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    document.getElementById('orchClearLog').addEventListener('click', () => {
+      const log = document.getElementById('orchLog');
+      log.innerHTML =
+        '<div class="orch-empty" id="orchEmpty">No routing data yet. ' +
+        'Start the assistant and speak to see the selected agents and route.</div>';
+    });
+
+    function getTransportPath() {
+      const isWebRTC = document.getElementById('transportToggle').checked;
+      return isWebRTC ? '/webrtc/travel/ws' : '/web/travel/ws';
+    }
+
+    document.getElementById('transportToggle').addEventListener('change', function() {
+      document.getElementById('labelWs').classList.toggle('active', !this.checked);
+      document.getElementById('labelWebrtc').classList.toggle('active', this.checked);
+    });
+
+    function startStreaming() {
+      let wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      let wsHost = window.location.host;
+      let wsPath = getTransportPath();
+      socket = new WebSocket(`${wsProtocol}://${wsHost}${wsPath}`);
+      socket.binaryType = 'arraybuffer';
+
+      socket.onopen = async () => {
+        await audioContext.resume();
+        await startMicrophone();
+        // Fresh call: start memory clean so routing reflects only this conversation.
+        conversationHistory = [];
+        lastOrchestratedText = '';
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+        document.getElementById('transportToggle').disabled = true;
+      };
+
+      socket.onmessage = async (event) => {
+        if (typeof event.data === 'string') {
+          const msg = JSON.parse(event.data);
+          if (msg.Kind === 'StopAudio') {
+            stopPlayback();
+          }
+          if (msg.Kind === 'Transcription') {
+            addTranscriptionMessage(msg.Text, 'agent');
+            recordTurn('assistant', msg.Text);
+          }
+          if (msg.Kind === 'UserTranscription') {
+            addTranscriptionMessage(msg.Text, 'user');
+            recordTurn('user', msg.Text);
+            // Send user utterances to travel orchestrator workflow.
+            callTravelOrchestrator(msg.Text);
+          }
+          if (msg.Kind === 'OrchestratorResponse') {
+            // Optional server-side event support if emitted later.
+            renderOrchestrationDetails(msg.Payload || msg);
+          }
+        } else if (event.data instanceof ArrayBuffer) {
+          try {
+            playAudio(event.data);
+          } catch (e) {
+            console.error('Failed to decode audio:', e);
+          }
+        }
+      };
+
+      socket.onclose = () => {
+        stopMicrophone();
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        document.getElementById('transportToggle').disabled = false;
+        lastOrchestratedText = '';
+      };
+
+      socket.onerror = (err) => console.error('WebSocket error', err);
+    }
+
+    function recordTurn(role, text) {
+      if (!text || !text.trim()) return;
+      conversationHistory.push({ role, text: text.trim() });
+      // Keep the buffer bounded to avoid unbounded growth on long calls.
+      if (conversationHistory.length > 40) {
+        conversationHistory = conversationHistory.slice(-40);
+      }
+    }
+
+    function addTranscriptionMessage(text, type) {
+      const container = document.getElementById('transcriptionMessages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type}`;
+
+      const label = document.createElement('div');
+      label.className = 'message-label';
+      label.textContent = type === 'user' ? 'You' : 'Travel Agent';
+
+      const content = document.createElement('div');
+      content.textContent = text;
+
+      messageDiv.appendChild(label);
+      messageDiv.appendChild(content);
+      container.appendChild(messageDiv);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function clearTranscription() {
+      document.getElementById('transcriptionMessages').innerHTML = '';
+      const log = document.getElementById('orchLog');
+      log.innerHTML =
+        '<div class="orch-empty" id="orchEmpty">No routing data yet. ' +
+        'Start the assistant and speak to see the selected agents and route.</div>';
+      lastOrchestratedText = '';
+      conversationHistory = [];
+    }
+
+    // ---- Demo script (non-blocking, editable, server-persisted) ----
+    const demoBtn = document.getElementById("demoBtn");
+    const demoPanel = document.getElementById("demoPanel");
+    const demoPanelHeader = document.getElementById("demoPanelHeader");
+    const demoCloseBtn = document.getElementById("demoCloseBtn");
+    const demoEditBtn = document.getElementById("demoEditBtn");
+    const demoBody = document.getElementById("demoBody");
+    const demoStatus = document.getElementById("demoStatus");
+    const demoSaveBtn = document.getElementById("demoSaveBtn");
+    const demoResetBtn = document.getElementById("demoResetBtn");
+    const demoCopyAllBtn = document.getElementById("demoCopyAllBtn");
+    const demoAddSectionBtn = document.getElementById("demoAddSectionBtn");
+
+    let demoData = { sections: [] };
+    let demoEditMode = false;
+    let demoLoaded = false;
+
+    function setDemoStatus(text, isError) {
+      demoStatus.textContent = text || "";
+      demoStatus.classList.toggle("error", Boolean(isError));
+    }
+
+    async function copyText(text, btn) {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (btn) {
+          const original = btn.textContent;
+          btn.textContent = "Copied";
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove("copied");
+          }, 1400);
+        }
+      } catch (err) {
+        console.error("clipboard copy failed", err);
+        setDemoStatus("Copy failed — select the text manually.", true);
+      }
+    }
+
+    function fullScriptText() {
+      return demoData.sections
+        .map((section) => {
+          const header = section.note ? `${section.title}\n${section.note}` : section.title;
+          const lines = (section.lines || []).map((line, i) => `${i + 1}. ${line}`).join("\n");
+          return [header, lines].filter(Boolean).join("\n");
+        })
+        .join("\n\n");
+    }
+
+    async function loadDemoScript() {
+      try {
+        const response = await fetch("/travel/demo-script");
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        const data = await response.json();
+        demoData = data && Array.isArray(data.sections) ? data : { sections: [] };
+        demoLoaded = true;
+      } catch (err) {
+        console.error("failed to load demo script", err);
+        setDemoStatus("Could not load saved script.", true);
+        demoData = { sections: [] };
+      }
+      renderDemo();
+    }
+
+    async function saveDemoScript() {
+      try {
+        setDemoStatus("Saving...");
+        const response = await fetch("/travel/demo-script", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(demoData),
+        });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        demoData = await response.json();
+        setDemoStatus("Saved.");
+        setDemoEditMode(false);
+        renderDemo();
+      } catch (err) {
+        console.error("failed to save demo script", err);
+        setDemoStatus("Save failed. Please try again.", true);
+      }
+    }
+
+    async function resetDemoScript() {
+      try {
+        setDemoStatus("Restoring default...");
+        const response = await fetch("/travel/demo-script/reset", { method: "POST" });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        demoData = await response.json();
+        setDemoStatus("Default script restored.");
+        setDemoEditMode(false);
+        renderDemo();
+      } catch (err) {
+        console.error("failed to reset demo script", err);
+        setDemoStatus("Reset failed. Please try again.", true);
+      }
+    }
+
+    function setDemoEditMode(on) {
+      demoEditMode = on;
+      demoEditBtn.textContent = on ? "Done" : "Edit";
+      demoEditBtn.classList.toggle("active", on);
+      demoSaveBtn.hidden = !on;
+      demoAddSectionBtn.hidden = !on;
+      demoPanel.classList.toggle("editing", on);
+    }
+
+    function renderDemo() {
+      demoBody.innerHTML = "";
+
+      if (!demoData.sections.length) {
+        const empty = document.createElement("p");
+        empty.className = "demo-empty";
+        empty.textContent = demoEditMode
+          ? "No items yet. Use \"Add section\" to create one."
+          : "No demo items. Switch to Edit to add some.";
+        demoBody.appendChild(empty);
+        return;
+      }
+
+      demoData.sections.forEach((section, sIdx) => {
+        const block = document.createElement("section");
+        block.className = "demo-section";
+
+        if (demoEditMode) {
+          block.appendChild(buildEditableSection(section, sIdx));
+        } else {
+          block.appendChild(buildReadonlySection(section));
+        }
+
+        demoBody.appendChild(block);
+      });
+    }
+
+    function buildReadonlySection(section) {
+      const frag = document.createDocumentFragment();
+
+      const heading = document.createElement("h3");
+      heading.className = "demo-section-title";
+      heading.textContent = section.title || "(untitled)";
+      frag.appendChild(heading);
+
+      if (section.note) {
+        const note = document.createElement("p");
+        note.className = "demo-section-note";
+        note.textContent = section.note;
+        frag.appendChild(note);
+      }
+
+      (section.lines || []).forEach((line, index) => {
+        const row = document.createElement("div");
+        row.className = "demo-line";
+
+        const text = document.createElement("span");
+        text.className = "demo-line-text";
+        text.textContent = `${index + 1}. ${line}`;
+
+        const actions = document.createElement("div");
+        actions.className = "demo-line-actions";
+
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "demo-line-copy";
+        copyBtn.textContent = "Copy";
+        copyBtn.addEventListener("click", () => copyText(line, copyBtn));
+
+        actions.appendChild(copyBtn);
+        row.appendChild(text);
+        row.appendChild(actions);
+        frag.appendChild(row);
+      });
+
+      return frag;
+    }
+
+    function buildEditableSection(section, sIdx) {
+      const frag = document.createDocumentFragment();
+
+      const headRow = document.createElement("div");
+      headRow.className = "demo-edit-head";
+
+      const titleInput = document.createElement("input");
+      titleInput.type = "text";
+      titleInput.className = "demo-edit-title";
+      titleInput.placeholder = "Section title";
+      titleInput.value = section.title || "";
+      titleInput.addEventListener("input", () => {
+        demoData.sections[sIdx].title = titleInput.value;
+      });
+
+      const delSectionBtn = document.createElement("button");
+      delSectionBtn.type = "button";
+      delSectionBtn.className = "demo-del-section";
+      delSectionBtn.title = "Delete section";
+      delSectionBtn.textContent = "Delete";
+      delSectionBtn.addEventListener("click", () => {
+        demoData.sections.splice(sIdx, 1);
+        renderDemo();
+      });
+
+      headRow.appendChild(titleInput);
+      headRow.appendChild(delSectionBtn);
+      frag.appendChild(headRow);
+
+      const noteInput = document.createElement("input");
+      noteInput.type = "text";
+      noteInput.className = "demo-edit-note";
+      noteInput.placeholder = "Optional note / instructions";
+      noteInput.value = section.note || "";
+      noteInput.addEventListener("input", () => {
+        demoData.sections[sIdx].note = noteInput.value;
+      });
+      frag.appendChild(noteInput);
+
+      (section.lines || []).forEach((line, lIdx) => {
+        const lineRow = document.createElement("div");
+        lineRow.className = "demo-edit-line";
+
+        const lineInput = document.createElement("input");
+        lineInput.type = "text";
+        lineInput.className = "demo-edit-line-input";
+        lineInput.placeholder = "Prompt text";
+        lineInput.value = line;
+        lineInput.addEventListener("input", () => {
+          demoData.sections[sIdx].lines[lIdx] = lineInput.value;
+        });
+
+        const delLineBtn = document.createElement("button");
+        delLineBtn.type = "button";
+        delLineBtn.className = "demo-del-line";
+        delLineBtn.title = "Delete line";
+        delLineBtn.textContent = "×";
+        delLineBtn.addEventListener("click", () => {
+          demoData.sections[sIdx].lines.splice(lIdx, 1);
+          renderDemo();
+        });
+
+        lineRow.appendChild(lineInput);
+        lineRow.appendChild(delLineBtn);
+        frag.appendChild(lineRow);
+      });
+
+      const addLineBtn = document.createElement("button");
+      addLineBtn.type = "button";
+      addLineBtn.className = "demo-add-line";
+      addLineBtn.textContent = "+ Add line";
+      addLineBtn.addEventListener("click", () => {
+        if (!Array.isArray(demoData.sections[sIdx].lines)) {
+          demoData.sections[sIdx].lines = [];
+        }
+        demoData.sections[sIdx].lines.push("");
+        renderDemo();
+      });
+      frag.appendChild(addLineBtn);
+
+      return frag;
+    }
+
+    function openDemo() {
+      demoPanel.hidden = false;
+      if (!demoLoaded) {
+        loadDemoScript();
+      } else {
+        renderDemo();
+      }
+    }
+
+    function closeDemo() {
+      demoPanel.hidden = true;
+    }
+
+    // Drag handling — non-blocking floating window.
+    let dragState = null;
+    function onDragStart(event) {
+      if (event.target.closest("button")) return;
+      const rect = demoPanel.getBoundingClientRect();
+      demoPanel.style.left = `${rect.left}px`;
+      demoPanel.style.top = `${rect.top}px`;
+      demoPanel.style.right = "auto";
+      demoPanel.style.bottom = "auto";
+      demoPanel.classList.add("dragging");
+      dragState = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+      window.addEventListener("pointermove", onDragMove);
+      window.addEventListener("pointerup", onDragEnd);
+    }
+    function onDragMove(event) {
+      if (!dragState) return;
+      const maxX = window.innerWidth - 60;
+      const maxY = window.innerHeight - 40;
+      const x = Math.min(Math.max(0, event.clientX - dragState.dx), maxX);
+      const y = Math.min(Math.max(0, event.clientY - dragState.dy), maxY);
+      demoPanel.style.left = `${x}px`;
+      demoPanel.style.top = `${y}px`;
+    }
+    function onDragEnd() {
+      dragState = null;
+      demoPanel.classList.remove("dragging");
+      window.removeEventListener("pointermove", onDragMove);
+      window.removeEventListener("pointerup", onDragEnd);
+    }
+
+    if (demoBtn) {
+      demoBtn.addEventListener("click", openDemo);
+      demoCloseBtn.addEventListener("click", closeDemo);
+      demoEditBtn.addEventListener("click", () => {
+        setDemoEditMode(!demoEditMode);
+        renderDemo();
+      });
+      demoSaveBtn.addEventListener("click", saveDemoScript);
+      demoResetBtn.addEventListener("click", resetDemoScript);
+      demoCopyAllBtn.addEventListener("click", () => copyText(fullScriptText(), demoCopyAllBtn));
+      demoAddSectionBtn.addEventListener("click", () => {
+        demoData.sections.push({ title: "New section", note: "", lines: [""] });
+        renderDemo();
+      });
+      demoPanelHeader.addEventListener("pointerdown", onDragStart);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !demoPanel.hidden && !demoEditMode) closeDemo();
+      });
+    }
+
+    loadAudioProcessor();
+  </script>
+</body>
+</html>

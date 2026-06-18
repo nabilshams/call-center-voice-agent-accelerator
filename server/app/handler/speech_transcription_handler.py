@@ -4,12 +4,15 @@ import asyncio
 import json
 import logging
 import queue
+from datetime import datetime
 from typing import Optional
 
 import azure.cognitiveservices.speech as speechsdk
 from azure.identity import ManagedIdentityCredential
 
 from .transcription_storage import TranscriptionStorage
+from .persona_inference import PersonaInferenceService
+from .recap_inference import RecapInferenceService
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +20,16 @@ logger = logging.getLogger(__name__)
 class SpeechTranscriptionHandler:
     """Handles real-time speech-to-text transcription using Azure Speech SDK."""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, mode: str = "default"):
         """Initialize the transcription handler.
         
         Args:
             config: Application configuration containing Azure Speech credentials
+            mode: 'default' for the generic live-transcription experience or
+                'recap' for the clinician-focused experience (clinician/patient
+                role taxonomy + structured SOAP note on stop).
         """
+        self.mode = mode
         self.speech_key = config.get("AZURE_SPEECH_KEY", "")
         self.speech_region = config.get("AZURE_SPEECH_REGION", "")
         self.speech_endpoint = config.get("AZURE_SPEECH_ENDPOINT", "")
@@ -30,15 +37,32 @@ class SpeechTranscriptionHandler:
         self.client_id = config.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID", "")
         
         self.incoming_websocket = None
-        self.speech_recognizer: Optional[speechsdk.SpeechRecognizer] = None
+        self.conversation_transcriber: Optional[speechsdk.transcription.ConversationTranscriber] = None
         self.push_stream: Optional[speechsdk.audio.PushAudioInputStream] = None
         self._is_running = False
+        self._sender_should_stop = False
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         # Thread-safe queue for passing messages from Speech SDK callbacks to async handler
         self._message_queue: queue.Queue = queue.Queue()
-        
-        # Transcription storage for saving conversations
-        self._transcription_storage = TranscriptionStorage(storage_type="clinician_notes")
+
+        # Transcription storage for saving conversations.
+        # In recap mode, write to a date-partitioned 'recap/' prefix.
+        storage_type = "recap" if mode == "recap" else "clinician_notes"
+        self._transcription_storage = TranscriptionStorage(storage_type=storage_type)
+        # Stable mapping from raw Speech SDK speaker IDs (e.g. "Guest-1") to friendly labels
+        self._speaker_labels: dict[str, str] = {}
+
+        # Inference service: clinician-focused for recap, generic otherwise.
+        if mode == "recap":
+            self._persona_inference = RecapInferenceService(
+                config=config,
+                message_sender=self._send_message_sync,
+            )
+        else:
+            self._persona_inference = PersonaInferenceService(
+                config=config,
+                message_sender=self._send_message_sync,
+            )
 
     async def init_websocket(self, websocket):
         """Initialize the incoming WebSocket connection.
@@ -49,6 +73,7 @@ class SpeechTranscriptionHandler:
         self.incoming_websocket = websocket
         # Use get_running_loop() to get the correct event loop for async operations
         self._loop = asyncio.get_running_loop()
+        self._persona_inference.set_loop(self._loop)
         logger.info(f"[SpeechTranscription] WebSocket initialized, loop: {self._loop}")
 
     async def start(self):
@@ -65,28 +90,31 @@ class SpeechTranscriptionHandler:
 
             # Create speech config
             speech_config = self._create_speech_config()
-            
+
             # Enable detailed output for better transcription
             speech_config.output_format = speechsdk.OutputFormat.Detailed
             speech_config.set_profanity(speechsdk.ProfanityOption.Raw)
-            
-            # Create recognizer
-            self.speech_recognizer = speechsdk.SpeechRecognizer(
+
+            # Create conversation transcriber for real-time diarization
+            # ConversationTranscriber returns a `speaker_id` (e.g. "Guest-1", "Guest-2")
+            # alongside each recognized result, enabling speaker-attributed transcripts.
+            self.conversation_transcriber = speechsdk.transcription.ConversationTranscriber(
                 speech_config=speech_config,
                 audio_config=audio_config
             )
 
-            # Connect event handlers
-            self.speech_recognizer.recognizing.connect(self._on_recognizing)
-            self.speech_recognizer.recognized.connect(self._on_recognized)
-            self.speech_recognizer.canceled.connect(self._on_canceled)
-            self.speech_recognizer.session_started.connect(self._on_session_started)
-            self.speech_recognizer.session_stopped.connect(self._on_session_stopped)
+            # Connect event handlers (note: events are `transcribing`/`transcribed`)
+            self.conversation_transcriber.transcribing.connect(self._on_recognizing)
+            self.conversation_transcriber.transcribed.connect(self._on_recognized)
+            self.conversation_transcriber.canceled.connect(self._on_canceled)
+            self.conversation_transcriber.session_started.connect(self._on_session_started)
+            self.conversation_transcriber.session_stopped.connect(self._on_session_stopped)
 
-            # Start continuous recognition
-            self.speech_recognizer.start_continuous_recognition_async()
+            # Start continuous transcription with diarization
+            self.conversation_transcriber.start_transcribing_async()
             self._is_running = True
-            
+            self._sender_should_stop = False
+
             # Start the message sender task
             asyncio.create_task(self._message_sender())
             
@@ -107,7 +135,7 @@ class SpeechTranscriptionHandler:
         queued by the Speech SDK callbacks (which run in a different thread).
         """
         logger.info("[SpeechTranscription] Message sender task started")
-        while self._is_running:
+        while not self._sender_should_stop:
             try:
                 # Check queue for messages (non-blocking)
                 try:
@@ -119,6 +147,17 @@ class SpeechTranscriptionHandler:
             except Exception as e:
                 logger.error(f"[SpeechTranscription] Message sender error: {e}")
                 await asyncio.sleep(0.1)
+        # Drain any remaining queued messages (e.g., 'saved'/'summary'
+        # produced during stop()) before exiting.
+        while True:
+            try:
+                message = self._message_queue.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                await self._send_message(message)
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error(f"[SpeechTranscription] Drain send error: {e}")
         logger.info("[SpeechTranscription] Message sender task stopped")
 
     def _create_speech_config(self) -> speechsdk.SpeechConfig:
@@ -190,8 +229,14 @@ class SpeechTranscriptionHandler:
 
     async def stop(self):
         """Stop the speech recognition session."""
+        if not self._is_running and self.push_stream is None and self.conversation_transcriber is None:
+            # Already stopped; nothing to do.
+            return
+        # Mark recognition as stopped so no new audio is accepted, but keep
+        # the message sender alive until we've queued the final saved/summary
+        # messages below.
         self._is_running = False
-        
+
         if self.push_stream:
             try:
                 self.push_stream.close()
@@ -199,57 +244,126 @@ class SpeechTranscriptionHandler:
                 logger.error(f"[SpeechTranscription] Error closing push stream: {e}")
             self.push_stream = None
 
-        if self.speech_recognizer:
+        if self.conversation_transcriber:
             try:
-                self.speech_recognizer.stop_continuous_recognition_async()
+                self.conversation_transcriber.stop_transcribing_async()
             except Exception as e:
-                logger.error(f"[SpeechTranscription] Error stopping recognizer: {e}")
-            self.speech_recognizer = None
+                logger.error(f"[SpeechTranscription] Error stopping transcriber: {e}")
+            self.conversation_transcriber = None
 
-        # Save transcription when session ends
+        # Save transcription when session ends; surface the blob URL to the client
         self._transcription_storage.end_conversation()
+        blob_url = self._transcription_storage.last_saved_url
+        if blob_url:
+            self._send_message_sync({
+                "type": "saved",
+                "url": blob_url,
+                "savedAt": datetime.now().isoformat(),
+            })
+
+        # Generate a final LLM-based summary while the client is still listening.
+        # In recap mode this is a structured SOAP note; in default mode it is
+        # the generic free-text summary + key_points + action_items.
+        try:
+            summary = await self._persona_inference.summarize()
+            if summary:
+                msg_type = "recap_note" if self.mode == "recap" else "summary"
+                self._send_message_sync({"type": msg_type, **summary})
+            else:
+                logger.warning("[SpeechTranscription] Summary returned None")
+                self._send_message_sync({
+                    "type": "error",
+                    "stage": "summary",
+                    "message": (
+                        "The clinical note could not be generated. The "
+                        "transcript may have been too short, or the AI "
+                        "service declined to respond. Please try again."
+                    ),
+                })
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning(f"[SpeechTranscription] Summary generation failed: {e}")
+            self._send_message_sync({
+                "type": "error",
+                "stage": "summary",
+                "message": f"Failed to generate clinical note: {e}",
+            })
+
+        # Now signal the message sender to stop; it will drain any queued
+        # messages (saved + summary) before exiting.
+        self._sender_should_stop = True
+        # Give the sender a brief window to drain.
+        await asyncio.sleep(0.5)
+
+        try:
+            await self._persona_inference.aclose()
+        except Exception as e:
+            logger.warning(f"[SpeechTranscription] Error closing persona inference: {e}")
 
         logger.info("[SpeechTranscription] Stopped recognition")
 
-    def _on_recognizing(self, evt: speechsdk.SpeechRecognitionEventArgs):
-        """Handle partial recognition results (interim transcripts)."""
-        logger.info(f"[SpeechTranscription] Recognizing event - Reason: {evt.result.reason}")
+    def _resolve_speaker(self, raw_speaker_id: Optional[str]) -> str:
+        """Map raw Speech SDK speaker IDs to friendly, stable display labels.
+
+        Azure returns IDs like "Guest-1", "Guest-2", or "Unknown". We map each
+        unique ID to "Speaker 1", "Speaker 2", etc., in first-seen order.
+        """
+        if not raw_speaker_id or raw_speaker_id.lower() == "unknown":
+            return "Unknown"
+        if raw_speaker_id not in self._speaker_labels:
+            self._speaker_labels[raw_speaker_id] = f"Speaker {len(self._speaker_labels) + 1}"
+        return self._speaker_labels[raw_speaker_id]
+
+    def _on_recognizing(self, evt):
+        """Handle partial transcription results (interim transcripts)."""
+        logger.info(f"[SpeechTranscription] Transcribing event - Reason: {evt.result.reason}")
         if evt.result.reason == speechsdk.ResultReason.RecognizingSpeech:
             text = evt.result.text
             if text:
-                logger.info(f"[SpeechTranscription] Partial: {text}")
+                speaker = self._resolve_speaker(getattr(evt.result, "speaker_id", None))
+                logger.info(f"[SpeechTranscription] Partial [{speaker}]: {text}")
                 self._send_message_sync({
                     "type": "partial",
-                    "text": text
+                    "text": text,
+                    "speaker": speaker,
                 })
 
-    def _on_recognized(self, evt: speechsdk.SpeechRecognitionEventArgs):
-        """Handle final recognition results."""
-        logger.info(f"[SpeechTranscription] Recognized event - Reason: {evt.result.reason}")
+    def _on_recognized(self, evt):
+        """Handle final transcription results."""
+        logger.info(f"[SpeechTranscription] Transcribed event - Reason: {evt.result.reason}")
         if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
             text = evt.result.text
             if text:
-                logger.info(f"[SpeechTranscription] Final: {text}")
+                speaker = self._resolve_speaker(getattr(evt.result, "speaker_id", None))
+                logger.info(f"[SpeechTranscription] Final [{speaker}]: {text}")
                 self._send_message_sync({
                     "type": "final",
-                    "text": text
+                    "text": text,
+                    "speaker": speaker,
                 })
-                # Save to transcription storage
-                self._transcription_storage.add_user_message(text)
+                # Persist with speaker label so the saved transcript is diarized
+                self._transcription_storage.add_speaker_message(speaker, text)
+                # Feed into persona inference (background, debounced)
+                self._persona_inference.add_segment(speaker, text)
         elif evt.result.reason == speechsdk.ResultReason.NoMatch:
             no_match_detail = speechsdk.NoMatchDetails(evt.result)
             logger.info(f"[SpeechTranscription] No speech recognized - Reason: {no_match_detail.reason}")
 
     def _on_canceled(self, evt: speechsdk.SpeechRecognitionCanceledEventArgs):
         """Handle recognition cancellation."""
-        if evt.reason == speechsdk.CancellationReason.Error:
-            error_msg = f"Speech recognition error: {evt.error_details}"
-            logger.error(f"[SpeechTranscription] {error_msg}")
+        # Always log the full cancellation event so silent failures are visible.
+        reason = getattr(evt, "reason", None)
+        error_code = getattr(evt, "error_code", None)
+        error_details = getattr(evt, "error_details", None)
+        logger.error(
+            "[SpeechTranscription] Canceled event - reason: %s, error_code: %s, error_details: %s",
+            reason, error_code, error_details,
+        )
+        if reason == speechsdk.CancellationReason.Error:
             self._send_message_sync({
                 "type": "error",
-                "message": error_msg
+                "message": f"Speech recognition error ({error_code}): {error_details}",
             })
-        elif evt.reason == speechsdk.CancellationReason.EndOfStream:
+        elif reason == speechsdk.CancellationReason.EndOfStream:
             logger.info("[SpeechTranscription] End of audio stream")
 
     def _on_session_started(self, evt: speechsdk.SessionEventArgs):
@@ -259,6 +373,10 @@ class SpeechTranscriptionHandler:
     def _on_session_stopped(self, evt: speechsdk.SessionEventArgs):
         """Handle session stop event."""
         logger.info(f"[SpeechTranscription] Session stopped: {evt.session_id}")
+        # Surface any error details that might be attached to the event.
+        details = getattr(evt, "error_details", None)
+        if details:
+            logger.error(f"[SpeechTranscription] Session stopped with error_details: {details}")
 
     def _send_message_sync(self, message: dict):
         """Queue a message to be sent to the WebSocket client (thread-safe).

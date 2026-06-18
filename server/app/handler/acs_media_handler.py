@@ -1,4 +1,4 @@
-"""Handles media streaming to Azure Voice Live API via WebSocket."""
+"""Handles media streaming to Azure Voice Live API via WebSocket or WebRTC."""
 
 import asyncio
 import base64
@@ -9,13 +9,15 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from azure.identity.aio import ManagedIdentityCredential
-from websockets.asyncio.client import connect as ws_connect
+from azure.identity.aio import ManagedIdentityCredential, DefaultAzureCredential
 from websockets.typing import Data
 
 from .ambient_mixer import AmbientMixer
+from .local_maf_orchestrator import LocalMAFTravelOrchestrator
 from .personas import get_random_persona, build_persona_prompt, Persona
+from .transport_factory import TransportFactory, TransportType
 from .transcription_storage import TranscriptionStorage
+from .voice_live_transport import VoiceLiveTransport
 
 logger = logging.getLogger(__name__)
 
@@ -25,35 +27,96 @@ DEFAULT_CHUNK_SIZE = 4800  # 24000 samples/sec * 0.1 sec * 2 bytes
 # Path to system prompt file
 SYSTEM_PROMPT_FILE = Path(__file__).parent.parent.parent / "prompts" / "system_prompt.txt"
 
+# Name of the Voice Live function tool used to consult the specialist agents.
+SPECIALIST_TOOL_NAME = "consult_travel_specialists"
 
-def load_system_prompt() -> str:
+# Deterministic holding phrase spoken while the specialist agents are queried, so
+# the caller hears a natural acknowledgment instead of dead air during orchestration.
+SPECIALIST_HOLDING_PHRASE = (
+    "Let me check that with our travel specialists — give me just a moment."
+)
+
+# Extra guidance appended to the system prompt when specialist tool calling is on.
+SPECIALIST_PROMPT_GUIDANCE = (
+    "You can consult specialist travel agents (flights, holiday packages, cruises, "
+    "tours, inspiration, deals, post-booking, and consultant match). Whenever the "
+    f"traveler's request needs specialist knowledge, call the {SPECIALIST_TOOL_NAME} "
+    "function with their request. The system will let the traveler know you are "
+    "checking with the specialists, so you do not need to stall yourself. When the "
+    "specialist results come back, relay them naturally in one cohesive, voice-friendly "
+    "reply and never invent prices, availability, or booking references."
+)
+
+
+def _specialist_tool_schema() -> dict:
+    """Voice Live function-tool definition for consulting the specialist agents."""
+    return {
+        "type": "function",
+        "name": SPECIALIST_TOOL_NAME,
+        "description": (
+            "Consult the Wanderlux specialist travel agents (flights, holiday packages, "
+            "cruises, tours, inspiration, deals, post-booking concierge, consultant match) "
+            "when the traveler's request spans one or more of those areas and their input "
+            "would improve the answer. Returns a blended summary plus any single follow-up "
+            "question to ask."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "request": {
+                    "type": "string",
+                    "description": (
+                        "The traveler's current request in your own words, capturing "
+                        "everything they want help with across all relevant travel areas."
+                    ),
+                }
+            },
+            "required": ["request"],
+        },
+    }
+
+
+def load_system_prompt(prompt_file: Optional[Path] = None) -> str:
     """Load the system prompt from the external file."""
+    file_to_load = prompt_file or SYSTEM_PROMPT_FILE
     try:
-        prompt = SYSTEM_PROMPT_FILE.read_text(encoding="utf-8").strip()
-        logger.info(f"[VoiceLiveACSHandler] Loaded system prompt from: {SYSTEM_PROMPT_FILE}")
+        prompt = file_to_load.read_text(encoding="utf-8").strip()
+        logger.info(f"[VoiceLiveACSHandler] Loaded system prompt from: {file_to_load}")
         logger.info(f"[VoiceLiveACSHandler] System prompt length: {len(prompt)} chars")
         logger.info(f"[VoiceLiveACSHandler] System prompt preview: {prompt[:200]}...")
         return prompt
     except FileNotFoundError:
-        logger.warning(f"System prompt file not found: {SYSTEM_PROMPT_FILE}, using default")
+        logger.warning(f"System prompt file not found: {file_to_load}, using default")
         return "You are a helpful AI assistant responding in natural, engaging language."
     except Exception as e:
         logger.error(f"Error loading system prompt: {e}, using default")
         return "You are a helpful AI assistant responding in natural, engaging language."
 
 
-def session_config(persona: Persona):
+def session_config(
+    persona: Persona,
+    prompt_file: Optional[Path] = None,
+    persona_context: str = "mmh",
+    enable_specialists: bool = False,
+):
     """Returns the session configuration for Voice Live with the given persona.
     
     Args:
         persona: The persona to use for this session
+        prompt_file: Optional system prompt override
+        persona_context: Persona pool to draw from (e.g. "mmh" or "travel")
+        enable_specialists: When True, register the specialist function tool so the
+            model can consult the multi-agent orchestrator during the conversation.
     """
-    base_prompt = load_system_prompt()
-    personalized_prompt = build_persona_prompt(persona, base_prompt)
-    
+    base_prompt = load_system_prompt(prompt_file)
+    personalized_prompt = build_persona_prompt(persona, base_prompt, persona_context)
+
+    if enable_specialists:
+        personalized_prompt = f"{personalized_prompt}\n\n{SPECIALIST_PROMPT_GUIDANCE}"
+
     logger.info(f"[VoiceLiveACSHandler] Session persona: {persona['name']} (voice: {persona['voice']})")
     
-    return {
+    session = {
         "type": "session.update",
         "session": {
             "instructions": personalized_prompt,
@@ -79,21 +142,38 @@ def session_config(persona: Persona):
         },
     }
 
+    if enable_specialists:
+        session["session"]["tools"] = [_specialist_tool_schema()]
+        session["session"]["tool_choice"] = "auto"
+
+    return session
+
 
 class ACSMediaHandler:
     """Manages audio streaming between client and Azure Voice Live API."""
 
-    def __init__(self, config):
+    def __init__(
+        self,
+        config,
+        transport_type: TransportType = "websocket",
+        prompt_file: Optional[Path] = None,
+        storage_type: str = "cybersecurity_agent",
+        persona_context: str = "mmh",
+        enable_specialists: bool = False,
+    ):
         self.endpoint = config["AZURE_VOICE_LIVE_ENDPOINT"]
         self.model = config["VOICE_LIVE_MODEL"]
         self.api_key = config["AZURE_VOICE_LIVE_API_KEY"]
         self.client_id = config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"]
         self.send_queue = asyncio.Queue()
         self.persona: Optional[Persona] = None  # Selected persona for this session
-        self.ws = None
+        self._transport: Optional[VoiceLiveTransport] = None
+        self._transport_type: TransportType = transport_type
         self.send_task = None
         self.incoming_websocket = None
         self.is_raw_audio = True
+        self._prompt_file = prompt_file
+        self._persona_context = persona_context
 
         # TTS output buffering for continuous ambient mixing
         self._tts_output_buffer = bytearray()
@@ -112,41 +192,92 @@ class ACSMediaHandler:
             except Exception as e:
                 logger.error(f"Failed to initialize AmbientMixer: {e}")
 
-        # Transcription storage for cybersecurity support agent conversations
-        self._transcription_storage = TranscriptionStorage(storage_type="cybersecurity_agent")
+        self._transcription_storage = TranscriptionStorage(storage_type=storage_type)
+
+        # Multi-agent specialist orchestration (Voice Live function tool).
+        self._enable_specialists = enable_specialists
+        self._orchestrator: Optional[LocalMAFTravelOrchestrator] = None
+        if enable_specialists:
+            try:
+                self._orchestrator = LocalMAFTravelOrchestrator(config)
+            except Exception:
+                logger.exception(
+                    "[VoiceLiveACSHandler] Failed to init specialist orchestrator; "
+                    "disabling specialist tool calling"
+                )
+                self._enable_specialists = False
+
+        # Running transcript used as context for the specialist orchestrator.
+        self._conversation_history: list[dict[str, str]] = []
+
+        # Specialist tool-call flow state (one in-flight tool call at a time).
+        self._tool_call: Optional[dict] = None
+        self._tool_result: Optional[dict] = None
+        self._tool_result_ready = asyncio.Event()
+        self._tool_ack_sent = False
+        self._tool_result_presented = False
 
     def _generate_guid(self):
         return str(uuid.uuid4())
 
     async def connect(self):
-        """Connects to Azure Voice Live API via WebSocket."""
+        """Connects to Azure Voice Live API via the configured transport."""
         # Select a random persona for this session
-        self.persona = get_random_persona()
+        self.persona = get_random_persona(self._persona_context)
         logger.info(f"[VoiceLiveACSHandler] Selected persona: {self.persona['name']}")
         
-        endpoint = self.endpoint.rstrip("/")
-        model = self.model.strip()
-        url = f"{endpoint}/voice-live/realtime?api-version=2025-05-01-preview&model={model}"
-        url = url.replace("https://", "wss://")
+        # Build URL using factory
+        url = TransportFactory.build_url(self._transport_type, self.endpoint, self.model)
 
         headers = {"x-ms-client-request-id": self._generate_guid()}
 
         if self.client_id:
-            # Use async context manager to auto-close the credential
-            async with ManagedIdentityCredential(client_id=self.client_id) as credential:
-                token = await credential.get_token(
-                    "https://cognitiveservices.azure.com/.default"
-                )
+            # Try managed identity first (works on Azure), fall back to DefaultAzureCredential (local dev)
+            token = None
+            try:
+                async with ManagedIdentityCredential(client_id=self.client_id) as credential:
+                    token = await credential.get_token(
+                        "https://cognitiveservices.azure.com/.default"
+                    )
+                    logger.info("[VoiceLiveACSHandler] Authenticated via managed identity")
+            except Exception as mi_err:
+                logger.warning(f"[VoiceLiveACSHandler] Managed identity unavailable: {mi_err}")
+                if self.api_key:
+                    logger.info("[VoiceLiveACSHandler] Falling back to API key auth")
+                else:
+                    logger.info("[VoiceLiveACSHandler] Falling back to DefaultAzureCredential")
+                    try:
+                        async with DefaultAzureCredential() as credential:
+                            token = await credential.get_token(
+                                "https://cognitiveservices.azure.com/.default"
+                            )
+                            logger.info("[VoiceLiveACSHandler] Authenticated via DefaultAzureCredential")
+                    except Exception as dac_err:
+                        logger.warning(f"[VoiceLiveACSHandler] DefaultAzureCredential failed: {dac_err}")
+
+            if token:
                 headers["Authorization"] = f"Bearer {token.token}"
-                logger.info("[VoiceLiveACSHandler] Connected to Voice Live API by managed identity")
+            elif self.api_key:
+                headers["api-key"] = self.api_key
+            else:
+                raise RuntimeError("No valid credentials available. Set AZURE_VOICE_LIVE_API_KEY or log in via Azure CLI.")
         else:
             headers["api-key"] = self.api_key
 
-        self.ws = await ws_connect(url, additional_headers=headers)
-        logger.info("[VoiceLiveACSHandler] Connected to Voice Live API")
+        # Create and connect transport
+        self._transport = TransportFactory.create(self._transport_type)
+        await self._transport.connect(url, headers)
+        logger.info(f"[VoiceLiveACSHandler] Connected via {self._transport_type} transport")
 
-        await self._send_json(session_config(self.persona))
-        await self._send_json({"type": "response.create"})
+        await self._transport.send_json(
+            session_config(
+                self.persona,
+                self._prompt_file,
+                self._persona_context,
+                self._enable_specialists,
+            )
+        )
+        await self._transport.send_json({"type": "response.create"})
 
         # Start transcription storage with persona name
         self._transcription_storage.start_conversation()
@@ -166,24 +297,24 @@ class ACSMediaHandler:
         )
 
     async def _send_json(self, obj):
-        """Sends a JSON object over WebSocket."""
-        if self.ws:
-            await self.ws.send(json.dumps(obj))
+        """Sends a JSON object via the transport."""
+        if self._transport:
+            await self._transport.send_json(obj)
 
     async def _sender_loop(self):
-        """Continuously sends messages from the queue to the Voice Live WebSocket."""
+        """Continuously sends messages from the queue to Voice Live via transport."""
         try:
             while True:
                 msg = await self.send_queue.get()
-                if self.ws:
-                    await self.ws.send(msg)
+                if self._transport:
+                    await self._transport.send(msg)
         except Exception:
             logger.exception("[VoiceLiveACSHandler] Sender loop error")
 
     async def _receiver_loop(self):
-        """Handles incoming events from the Voice Live WebSocket."""
+        """Handles incoming events from Voice Live via the transport."""
         try:
-            async for message in self.ws:
+            async for message in self._transport.receive():
                 event = json.loads(message)
                 event_type = event.get("type")
 
@@ -435,10 +566,10 @@ class ACSMediaHandler:
                 self.send_task.cancel()
                 self.send_task = None
             
-            # Close the WebSocket connection to Voice Live
-            if self.ws:
-                await self.ws.close()
-                self.ws = None
+            # Close the transport connection
+            if self._transport:
+                await self._transport.close()
+                self._transport = None
             
             # Save the transcription
             self._transcription_storage.end_conversation()

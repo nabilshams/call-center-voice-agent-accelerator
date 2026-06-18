@@ -1,0 +1,155 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - Holiday Packages API
+  version: 1.0.0
+  description: >-
+    Search curated flight + hotel holiday packages, get package details, and
+    create package bookings.
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files. Bookings live only for the lifetime of the server process.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/packages
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/packages
+    description: Local development
+paths:
+  /search:
+    get:
+      operationId: search_holiday_packages
+      summary: Search holiday packages
+      description: >-
+        Search curated flight + hotel holiday packages by destination, board
+        basis, and per-person budget (NZD). All filters optional. Returns
+        packages with inclusions, exclusions, deal expiry, and available
+        upgrades.
+      parameters:
+        - { name: destination, in: query, schema: { type: string, example: Fiji } }
+        - { name: board_basis, in: query, schema: { type: string, enum: [room_only, breakfast, half_board, all_inclusive], example: breakfast } }
+        - { name: budget_min, in: query, schema: { type: number, format: float, example: 1500 }, description: "Minimum price per person in NZD" }
+        - { name: budget_max, in: query, schema: { type: number, format: float, example: 2500 }, description: "Maximum price per person in NZD" }
+      responses:
+        "200":
+          description: Matching packages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  packages:
+                    type: array
+                    items: { $ref: "#/components/schemas/Package" }
+  /{package_id}:
+    get:
+      operationId: get_package_details
+      summary: Get full package details
+      description: Retrieve the complete record for a single holiday package, including all inclusions/exclusions, deal expiry, rooms remaining, and upgrade options.
+      parameters:
+        - { name: package_id, in: path, required: true, schema: { type: string, example: PKG-FIJI-SOFITEL } }
+      responses:
+        "200":
+          description: Package details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Package" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /bookings:
+    post:
+      operationId: create_package_booking
+      summary: Create a holiday package booking
+      description: >-
+        Book a holiday package for the given travellers. Returns a generated
+        HOT-###### reference and a confirmed booking with the total price in
+        NZD. DEMO ONLY - stored in memory.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePackageBookingRequest" }
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: boolean }
+                  booking: { $ref: "#/components/schemas/Booking" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: package_not_found }
+        message: { type: string }
+    Package:
+      type: object
+      properties:
+        package_id: { type: string, example: PKG-FIJI-SOFITEL }
+        name: { type: string }
+        destination: { type: string, example: Fiji }
+        hotel_name: { type: string }
+        star_rating: { type: integer, example: 5 }
+        location: { type: string }
+        nights: { type: integer, example: 7 }
+        board_basis: { type: string, example: breakfast }
+        price_per_person_nzd: { type: number, format: float, example: 2349.0 }
+        total_price_nzd: { type: number, format: float, example: 4698.0 }
+        departure_airport: { type: string, example: AKL }
+        inclusions: { type: array, items: { type: string } }
+        exclusions: { type: array, items: { type: string } }
+        deal_expiry: { type: string, format: date }
+        rooms_remaining: { type: integer, example: 4 }
+        upgrades: { type: array, items: { type: object } }
+    Passenger:
+      type: object
+      properties:
+        first_name: { type: string, example: Jane }
+        last_name: { type: string, example: Thompson }
+    ContactDetails:
+      type: object
+      properties:
+        email: { type: string, format: email, example: jane.thompson@example.com }
+        phone: { type: string, example: "+64 21 555 0100" }
+    CreatePackageBookingRequest:
+      type: object
+      required: [package_id, traveller_details]
+      properties:
+        package_id: { type: string, example: PKG-FIJI-SOFITEL }
+        traveller_details: { type: array, items: { $ref: "#/components/schemas/Passenger" } }
+        contact_details: { $ref: "#/components/schemas/ContactDetails" }
+    Booking:
+      type: object
+      properties:
+        booking_reference: { type: string, example: HOT-562104 }
+        last_name: { type: string, example: Thompson }
+        email: { type: string, format: email }
+        lead_passenger: { type: string }
+        passengers: { type: integer, example: 2 }
+        type: { type: string, example: package }
+        itinerary: { type: string }
+        airline: { type: string, nullable: true }
+        flight_number: { type: string, nullable: true }
+        cabin_class: { type: string, nullable: true }
+        departure_date: { type: string, format: date, nullable: true }
+        return_date: { type: string, format: date, nullable: true }
+        destination: { type: string }
+        total_nzd: { type: number, format: float, example: 4698.0 }
+        insurance: { type: string, nullable: true }
+        status: { type: string, example: confirmed }

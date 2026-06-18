@@ -16,6 +16,14 @@ param identityPrincipalId string
 @description('Principal ID of the deploying user for data access')
 param deployerPrincipalId string = ''
 
+@description('Subnet resource ID where the storage private endpoint will be created. When provided, public network access is disabled.')
+param privateEndpointSubnetId string = ''
+
+@description('Resource ID of the private DNS zone for blob endpoints (privatelink.blob.<suffix>).')
+param blobPrivateDnsZoneId string = ''
+
+var usePrivateEndpoint = !empty(privateEndpointSubnetId) && !empty(blobPrivateDnsZoneId)
+
 // Storage account name must be 3-24 characters, lowercase letters and numbers only
 var sanitizedEnvName = toLower(replace(replace(replace(environmentName, '-', ''), '_', ''), ' ', ''))
 var baseStorageName = 'st${sanitizedEnvName}${uniqueSuffix}'
@@ -36,9 +44,10 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2024-01-01' = {
     allowSharedKeyAccess: true
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
+    publicNetworkAccess: usePrivateEndpoint ? 'Disabled' : 'Enabled'
     networkAcls: {
       bypass: 'AzureServices'
-      defaultAction: 'Allow'
+      defaultAction: usePrivateEndpoint ? 'Deny' : 'Allow'
     }
   }
 }
@@ -102,3 +111,45 @@ output storageAccountName string = storageAccount.name
 output storageAccountId string = storageAccount.id
 output primaryBlobEndpoint string = storageAccount.properties.primaryEndpoints.blob
 output transcriptsContainerName string = transcriptsContainer.name
+
+// ---------------------------------------------------------------------------
+// Private endpoint for Blob service (only created when subnet + DNS provided)
+// ---------------------------------------------------------------------------
+var blobPrivateEndpointName = take('pe-${storageAccountName}-blob', 80)
+
+resource blobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = if (usePrivateEndpoint) {
+  name: blobPrivateEndpointName
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: privateEndpointSubnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${blobPrivateEndpointName}-conn'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: [
+            'blob'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource blobPrivateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = if (usePrivateEndpoint) {
+  parent: blobPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'blob'
+        properties: {
+          privateDnsZoneId: blobPrivateDnsZoneId
+        }
+      }
+    ]
+  }
+}

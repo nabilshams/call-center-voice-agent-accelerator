@@ -39,6 +39,9 @@ COPY pyproject.toml uv.lock /app/
 # Sync the project into a new environment, using the frozen lockfile
 RUN uv sync --frozen --no-dev --no-install-project --no-editable --all-packages
 
+# Ensure Native MAF SDK is available at runtime for maf-local orchestration.
+RUN /app/.venv/bin/pip install --no-cache-dir "agent-framework>=0.1.0"
+
 COPY *.py *.md /app/
 COPY app /app/app/
 COPY static /app/static/
@@ -48,6 +51,11 @@ COPY prompts /app/prompts/
 # Final image #
 ###############
 FROM base
+
+# Install ffmpeg for audio conversion (required by pydub)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r app
 RUN useradd -r -d /app -g app -N app

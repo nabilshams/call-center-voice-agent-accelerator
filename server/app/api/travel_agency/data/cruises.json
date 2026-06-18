@@ -1,0 +1,102 @@
+{
+  "cruise_lines": [
+    {
+      "cruise_line": "Princess Cruises",
+      "overview": "Classic elegance with a refined onboard experience, popular with the mature market.",
+      "signature_features": ["Movies Under the Stars", "Princess Live entertainment", "Speciality dining"],
+      "ships": ["Crown Princess", "Majestic Princess", "Royal Princess"],
+      "best_for": "Couples and experienced cruisers seeking elegance"
+    },
+    {
+      "cruise_line": "Carnival Cruise Line",
+      "overview": "Fun, lively and family-friendly with vibrant entertainment and activities.",
+      "signature_features": ["WaterWorks aqua park", "Comedy clubs", "Family-friendly programming"],
+      "ships": ["Carnival Splendor", "Carnival Luminosa"],
+      "best_for": "Families and first-time cruisers wanting a lively atmosphere"
+    },
+    {
+      "cruise_line": "AmaWaterways",
+      "overview": "Luxury European and Asian river cruises aboard intimate ships.",
+      "signature_features": ["Intimate ships", "Included shore excursions", "Gourmet dining"],
+      "ships": ["AmaMagna", "AmaLucia", "AmaDahlia"],
+      "best_for": "Travellers seeking an intimate, immersive river cruise"
+    }
+  ],
+  "cruises": [
+    {
+      "cruise_id": "CR-PRINCESS-PAC14",
+      "cruise_line": "Princess Cruises",
+      "ship_name": "Crown Princess",
+      "name": "14-Night Pacific Islands Voyage",
+      "departure_port": "Auckland",
+      "region": "Pacific",
+      "duration_nights": 14,
+      "departure_date": "2026-10-05",
+      "itinerary": [
+        { "day": 1, "port": "Auckland", "description": "Depart Auckland in the afternoon" },
+        { "day": 2, "port": "At Sea", "description": "Relax and enjoy onboard activities" },
+        { "day": 4, "port": "Suva, Fiji", "description": "Explore Fiji's vibrant capital" },
+        { "day": 6, "port": "Apia, Samoa", "description": "Discover Samoan culture and beaches" },
+        { "day": 9, "port": "Port Vila, Vanuatu", "description": "Snorkelling and island tours" },
+        { "day": 14, "port": "Auckland", "description": "Arrive back in Auckland" }
+      ],
+      "cabin_pricing": {
+        "inside": 2200.0,
+        "balcony": 3200.0,
+        "suite": 5400.0
+      },
+      "inclusions": ["All main meals", "Onboard entertainment", "Daily activities", "Use of pools and fitness centre"],
+      "extras": ["Shore excursions", "Drinks packages", "Spa treatments", "Speciality dining"],
+      "availability": { "inside": 30, "balcony": 18, "suite": 4 }
+    },
+    {
+      "cruise_id": "CR-CARNIVAL-PAC8",
+      "cruise_line": "Carnival Cruise Line",
+      "ship_name": "Carnival Splendor",
+      "name": "8-Night South Pacific Adventure",
+      "departure_port": "Sydney",
+      "region": "Pacific",
+      "duration_nights": 8,
+      "departure_date": "2026-09-12",
+      "itinerary": [
+        { "day": 1, "port": "Sydney", "description": "Depart Sydney" },
+        { "day": 3, "port": "Noumea, New Caledonia", "description": "French-Pacific charm" },
+        { "day": 5, "port": "Lifou, New Caledonia", "description": "Pristine beaches and snorkelling" },
+        { "day": 8, "port": "Sydney", "description": "Return to Sydney" }
+      ],
+      "cabin_pricing": {
+        "inside": 1450.0,
+        "balcony": 2100.0,
+        "suite": 3600.0
+      },
+      "inclusions": ["All main meals", "WaterWorks aqua park", "Live entertainment", "Family activities"],
+      "extras": ["Shore excursions", "Cheers! drinks package", "Speciality restaurants"],
+      "availability": { "inside": 40, "balcony": 22, "suite": 6 }
+    },
+    {
+      "cruise_id": "CR-AMA-DANUBE7",
+      "cruise_line": "AmaWaterways",
+      "ship_name": "AmaMagna",
+      "name": "7-Night Romantic Danube River Cruise",
+      "departure_port": "Fly-to-port (Vilshofen)",
+      "region": "European Rivers",
+      "duration_nights": 7,
+      "departure_date": "2026-06-20",
+      "itinerary": [
+        { "day": 1, "port": "Vilshofen, Germany", "description": "Embark and welcome dinner" },
+        { "day": 2, "port": "Passau, Germany", "description": "City of Three Rivers walking tour" },
+        { "day": 3, "port": "Linz, Austria", "description": "Gateway to Salzburg" },
+        { "day": 5, "port": "Vienna, Austria", "description": "Imperial city tour" },
+        { "day": 7, "port": "Budapest, Hungary", "description": "Disembark in Budapest" }
+      ],
+      "cabin_pricing": {
+        "inside": 3900.0,
+        "balcony": 5200.0,
+        "suite": 7800.0
+      },
+      "inclusions": ["All meals", "Included shore excursions", "Wine with dinner", "Bicycles onboard"],
+      "extras": ["International flights", "Optional premium excursions", "Spa treatments"],
+      "availability": { "inside": 8, "balcony": 14, "suite": 3 }
+    }
+  ]
+}

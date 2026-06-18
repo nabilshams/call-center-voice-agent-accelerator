@@ -1,0 +1,5 @@
+[Speaker 1] Hello, thank you for calling customer support. How can I help you today?
+[Speaker 2] Hi, I need to check my account balance please.
+[Speaker 1] I understand. Let me look into that for you.
+[Speaker 2] Thank you so much for your help.
+[Speaker 1] I found your account. Your balance is one hundred fifty dollars.

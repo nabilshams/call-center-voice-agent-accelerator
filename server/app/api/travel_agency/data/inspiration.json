@@ -1,0 +1,82 @@
+{
+  "destinations": [
+    {
+      "destination": "Japan",
+      "highlights": [
+        "Cherry blossoms in Kyoto in late March",
+        "Bullet train from Tokyo to Kyoto",
+        "World-class food and Michelin dining",
+        "Ancient temples in cedar forests"
+      ],
+      "best_time_to_visit": "Late March to May (cherry blossoms) and October to November (autumn colours)",
+      "traveller_types": ["culture", "food", "adventure"],
+      "travel_tips": "Get a Japan Rail Pass before you arrive for the best value on bullet trains.",
+      "seasonal_breakdown": [
+        { "season": "Spring (Mar-May)", "weather": "Mild, cherry blossoms", "events": "Hanami festivals" },
+        { "season": "Summer (Jun-Aug)", "weather": "Hot and humid", "events": "Fireworks festivals" },
+        { "season": "Autumn (Sep-Nov)", "weather": "Cool, autumn leaves", "events": "Momiji viewing" },
+        { "season": "Winter (Dec-Feb)", "weather": "Cold, snow in north", "events": "Skiing, illuminations" }
+      ]
+    },
+    {
+      "destination": "Fiji",
+      "highlights": [
+        "Overwater bures and pristine beaches",
+        "Snorkelling on coral reefs",
+        "Traditional Fijian village visits",
+        "Sunset cocktails on Denarau Island"
+      ],
+      "best_time_to_visit": "May to October (dry season)",
+      "traveller_types": ["relaxation", "family", "romance"],
+      "travel_tips": "The dry season offers the best weather; pack reef-safe sunscreen.",
+      "seasonal_breakdown": [
+        { "season": "Dry (May-Oct)", "weather": "Warm and dry", "events": "Bula Festival" },
+        { "season": "Wet (Nov-Apr)", "weather": "Hot, humid, occasional cyclones", "events": "Diwali" }
+      ]
+    },
+    {
+      "destination": "Italy",
+      "highlights": [
+        "Ancient Rome and the Colosseum",
+        "Gondola rides in Venice",
+        "Tuscan vineyards and cuisine",
+        "The Amalfi Coast"
+      ],
+      "best_time_to_visit": "April to June and September to October",
+      "traveller_types": ["culture", "food", "romance"],
+      "travel_tips": "Shoulder seasons mean fewer crowds and pleasant weather.",
+      "seasonal_breakdown": [
+        { "season": "Spring (Apr-Jun)", "weather": "Mild and pleasant", "events": "Easter celebrations" },
+        { "season": "Summer (Jul-Aug)", "weather": "Hot and busy", "events": "Local festivals" },
+        { "season": "Autumn (Sep-Oct)", "weather": "Warm, harvest season", "events": "Wine harvest" }
+      ]
+    },
+    {
+      "destination": "Maldives",
+      "highlights": [
+        "Private overwater villas",
+        "World-class diving and snorkelling",
+        "Secluded sandbank picnics",
+        "Spa retreats over the lagoon"
+      ],
+      "best_time_to_visit": "November to April (dry season)",
+      "traveller_types": ["romance", "relaxation", "luxury"],
+      "travel_tips": "Resorts are on private islands; arrange seaplane transfers in advance.",
+      "seasonal_breakdown": [
+        { "season": "Dry (Nov-Apr)", "weather": "Sunny and calm", "events": "Peak honeymoon season" },
+        { "season": "Wet (May-Oct)", "weather": "Occasional rain, better value", "events": "Surfing season" }
+      ]
+    }
+  ],
+  "trending": [
+    { "month": "March", "traveller_type": "couple", "destinations": ["Japan", "Italy", "Maldives"] },
+    { "month": "June", "traveller_type": "family", "destinations": ["Fiji", "Cook Islands", "Australia"] },
+    { "month": "September", "traveller_type": "solo", "destinations": ["Japan", "Vietnam", "Greece"] },
+    { "month": "December", "traveller_type": "couple", "destinations": ["Maldives", "Hawaii", "Bali"] }
+  ],
+  "articles": [
+    { "article_id": "INSP-JAPAN-SPRING", "title": "Chasing Cherry Blossoms: A Spring Journey Through Japan", "destination_or_theme": "Japan", "url": "https://www.wanderlux.co.nz/inspire/japan-spring" },
+    { "article_id": "INSP-FIJI-FAMILY", "title": "Why Fiji is the Ultimate Family Escape", "destination_or_theme": "Fiji", "url": "https://www.wanderlux.co.nz/inspire/fiji-family" },
+    { "article_id": "INSP-ADVENTURE", "title": "10 Bucket-List Adventures for the Bold Traveller", "destination_or_theme": "adventure", "url": "https://www.wanderlux.co.nz/inspire/bucket-list-adventures" }
+  ]
+}

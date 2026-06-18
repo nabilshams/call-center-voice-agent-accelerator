@@ -9,6 +9,8 @@ param containerRegistryName string
 param aiServicesEndpoint string
 param aiServicesResourceId string = ''
 param modelDeploymentName string
+@description('Name of the Azure OpenAI chat completions deployment used for server-side LLM calls (e.g. persona inference).')
+param chatDeploymentName string = 'gpt-4o-mini'
 param acsConnectionStringSecretUri string
 param logAnalyticsWorkspaceName string
 @description('The name of the container image')
@@ -21,6 +23,21 @@ param storageAccountName string = ''
 param storageBlobEndpoint string = ''
 @description('Azure Storage container name for transcripts')
 param transcriptsContainerName string = 'transcripts'
+
+@description('Travel orchestrator mode: maf-local | foundry | maf | local')
+param travelOrchestratorMode string = 'maf-local'
+
+@description('Enable Native MAF SDK for local orchestrator')
+param mafNativeSdkEnabled string = 'true'
+
+@description('MAF / AI Foundry project endpoint for native SDK')
+param mafProjectEndpoint string = ''
+
+@description('Model name used by native MAF agents')
+param mafModel string = 'gpt-4o-mini'
+
+@description('Resource ID of the subnet to use for Container Apps VNet integration. When empty, the environment is created without VNet integration.')
+param infrastructureSubnetId string = ''
 
 // Helper to sanitize environmentName for valid container app name
 var sanitizedEnvName = toLower(replace(replace(replace(replace(environmentName, ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))
@@ -49,6 +66,10 @@ resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
         customerId: logAnalyticsWorkspace.properties.customerId
         sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
       }
+    }
+    vnetConfiguration: empty(infrastructureSubnetId) ? null : {
+      infrastructureSubnetId: infrastructureSubnetId
+      internal: false
     }
   }
 }
@@ -99,6 +120,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
               value: identityClientId
             }
             {
+              name: 'AZURE_CLIENT_ID'
+              value: identityClientId
+            }
+            {
               name: 'VOICE_LIVE_MODEL'
               value: modelDeploymentName
             }
@@ -129,6 +154,30 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
             {
               name: 'AZURE_TRANSCRIPTS_CONTAINER'
               value: transcriptsContainerName
+            }
+            {
+              name: 'AZURE_OPENAI_ENDPOINT'
+              value: aiServicesEndpoint
+            }
+            {
+              name: 'AZURE_OPENAI_CHAT_DEPLOYMENT'
+              value: chatDeploymentName
+            }
+            {
+              name: 'TRAVEL_ORCHESTRATOR_MODE'
+              value: travelOrchestratorMode
+            }
+            {
+              name: 'MAF_NATIVE_SDK_ENABLED'
+              value: mafNativeSdkEnabled
+            }
+            {
+              name: 'MAF_PROJECT_ENDPOINT'
+              value: mafProjectEndpoint
+            }
+            {
+              name: 'MAF_MODEL'
+              value: mafModel
             }
           ]
           resources: {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Real-Time Transcription</title>
+  <title>Audio Transcription</title>
   <style>
     * {
       box-sizing: border-box;
@@ -40,11 +40,118 @@
       color: #a0a0a0;
     }
 
+    .upload-section {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .upload-section h2 {
+      font-size: 1.1rem;
+      color: #a0a0a0;
+      font-weight: 500;
+      margin: 0 0 1rem 0;
+    }
+
+    .file-upload-area {
+      border: 2px dashed rgba(0, 212, 255, 0.4);
+      border-radius: 0.75rem;
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      margin-bottom: 1rem;
+    }
+
+    .file-upload-area:hover,
+    .file-upload-area.drag-over {
+      border-color: #00d4ff;
+      background: rgba(0, 212, 255, 0.1);
+    }
+
+    .file-upload-area svg {
+      width: 48px;
+      height: 48px;
+      color: #00d4ff;
+      margin-bottom: 0.75rem;
+    }
+
+    .file-upload-area p {
+      margin: 0;
+      color: #a0a0a0;
+    }
+
+    .file-upload-area .file-name {
+      margin-top: 0.75rem;
+      color: #00ff88;
+      font-weight: 500;
+    }
+
+    .file-upload-area.reference-upload {
+      padding: 1.5rem;
+      border-color: rgba(255, 170, 0, 0.4);
+    }
+
+    .file-upload-area.reference-upload:hover,
+    .file-upload-area.reference-upload.drag-over {
+      border-color: #ffaa00;
+      background: rgba(255, 170, 0, 0.1);
+    }
+
+    .file-upload-area.reference-upload svg {
+      width: 36px;
+      height: 36px;
+      color: #ffaa00;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .input-group {
+      margin-bottom: 1rem;
+    }
+
+    .input-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #a0a0a0;
+      font-size: 0.9rem;
+    }
+
+    .input-group input[type="text"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 0.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      color: #e8e8e8;
+      transition: border-color 0.2s ease;
+    }
+
+    .input-group input[type="text"]:focus {
+      outline: none;
+      border-color: #00d4ff;
+    }
+
+    .input-group input[type="text"]::placeholder {
+      color: #6a6a8a;
+    }
+
+    .input-group .hint {
+      font-size: 0.8rem;
+      color: #6a6a8a;
+      margin-top: 0.25rem;
+    }
+
     .controls {
       display: flex;
       gap: 1rem;
       justify-content: center;
-      margin-bottom: 2rem;
+      margin-top: 1.5rem;
     }
 
     button {
@@ -60,17 +167,17 @@
       gap: 0.5rem;
     }
 
-    #startTranscriptionBtn {
+    #transcribeBtn {
       background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
       color: #1a1a2e;
     }
 
-    #startTranscriptionBtn:hover:not(:disabled) {
+    #transcribeBtn:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
     }
 
-    #startTranscriptionBtn:disabled {
+    #transcribeBtn:disabled {
       background: #3a3a5a;
       color: #6a6a8a;
       cursor: not-allowed;
@@ -78,22 +185,15 @@
       box-shadow: none;
     }
 
-    #stopTranscriptionBtn {
-      background: linear-gradient(135deg, #ff4757 0%, #cc3344 100%);
-      color: white;
+    #clearBtn {
+      background: rgba(255, 255, 255, 0.1);
+      color: #a0a0a0;
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
-    #stopTranscriptionBtn:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
-    }
-
-    #stopTranscriptionBtn:disabled {
-      background: #3a3a5a;
-      color: #6a6a8a;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
+    #clearBtn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #e8e8e8;
     }
 
     .status-bar {
@@ -132,68 +232,97 @@
       color: #a0a0a0;
     }
 
-    .transcription-panel {
-      background: rgba(255, 255, 255, 0.05);
+    .results-panel {
+      background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 1rem;
-      padding: 1.5rem;
-      min-height: 400px;
-      max-height: 60vh;
-      overflow-y: auto;
+      border-radius: 1.25rem;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
     }
 
-    .transcription-panel::-webkit-scrollbar {
+    .results-panel h2 {
+      font-size: 1.25rem;
+      color: #e8e8e8;
+      font-weight: 600;
+      margin: 0 0 1.25rem 0;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .results-panel h2::before {
+      content: "📋";
+    }
+
+    .results-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+
+    .result-column {
+      min-height: 200px;
+    }
+
+    .result-column h3 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      color: #e8e8e8;
+    }
+
+    .result-column h3 {
+      font-size: 0.95rem;
+      color: #00d4ff;
+      margin: 0 0 0.75rem 0;
+      font-weight: 500;
+    }
+
+    .result-content {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      min-height: 200px;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      /*white-space: pre-wrap;*/
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .result-content::-webkit-scrollbar {
       width: 8px;
     }
 
-    .transcription-panel::-webkit-scrollbar-track {
+    .result-content::-webkit-scrollbar-track {
       background: rgba(255, 255, 255, 0.05);
       border-radius: 4px;
     }
 
-    .transcription-panel::-webkit-scrollbar-thumb {
+    .result-content::-webkit-scrollbar-thumb {
       background: rgba(0, 212, 255, 0.3);
       border-radius: 4px;
     }
 
-    .transcription-panel::-webkit-scrollbar-thumb:hover {
+    .result-content::-webkit-scrollbar-thumb:hover {
       background: rgba(0, 212, 255, 0.5);
     }
 
-    .transcript-entry {
-      padding: 0.75rem 1rem;
-      margin-bottom: 0.75rem;
-      border-radius: 0.5rem;
-      animation: fadeIn 0.3s ease;
+    .result-content.transcription {
+      border-left: 4px solid #00ff88;
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.05) 0%, rgba(0, 0, 0, 0.3) 100%);
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .transcript-entry.partial {
-      background: rgba(0, 212, 255, 0.1);
-      border-left: 3px solid #00d4ff;
-      color: #a0c8d8;
-      font-style: italic;
-    }
-
-    .transcript-entry.final {
-      background: rgba(0, 255, 136, 0.1);
-      border-left: 3px solid #00ff88;
-      color: #e8e8e8;
-    }
-
-    .transcript-entry .timestamp {
-      font-size: 0.75rem;
-      color: #6a6a8a;
-      margin-bottom: 0.25rem;
-    }
-
-    .transcript-entry .text {
-      font-size: 1.05rem;
-      line-height: 1.5;
+    .result-content.reference {
+      border-left: 4px solid #ffaa00;
+      background: linear-gradient(135deg, rgba(255, 170, 0, 0.05) 0%, rgba(0, 0, 0, 0.3) 100%);
     }
 
     .empty-state {
@@ -201,49 +330,30 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 300px;
+      height: 150px;
       color: #6a6a8a;
+      text-align: center;
     }
 
     .empty-state svg {
-      width: 64px;
-      height: 64px;
-      margin-bottom: 1rem;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 0.75rem;
       opacity: 0.5;
     }
 
-    .clear-btn {
-      position: absolute;
-      top: 0px;
-      right: 1rem;
-      background: rgba(0, 212, 255, 0.15);
-      border: 1px solid rgba(0, 212, 255, 0.4);
-      color: #00d4ff;
-      padding: 0.5rem 1rem;
-      font-size: 0.85rem;
-      border-radius: 0.4rem;
-      cursor: pointer;
-      transition: all 0.2s ease;
+    .single-column .results-container {
+      grid-template-columns: 1fr;
     }
 
-    .clear-btn:hover {
-      background: rgba(0, 212, 255, 0.25);
-      color: #fff;
-      border-color: rgba(0, 212, 255, 0.6);
+    .audio-player {
+      margin-top: 1rem;
+      width: 100%;
     }
 
-    .panel-header {
-      position: relative;
-      margin-bottom: 1rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .panel-header h2 {
-      margin: 0;
-      font-size: 1.1rem;
-      color: #a0a0a0;
-      font-weight: 500;
+    .audio-player audio {
+      width: 100%;
+      border-radius: 0.5rem;
     }
 
     footer {
@@ -262,62 +372,477 @@
       text-decoration: underline;
     }
 
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: #00d4ff;
-      text-decoration: none;
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
-      transition: color 0.2s ease;
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #1a1a2e;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
     }
 
-    .back-link:hover {
-      color: #00a8cc;
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Toggle switch styles */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 26px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.2);
+      transition: 0.3s;
+      border-radius: 26px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: #00d4ff;
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(24px);
+    }
+
+    /* Processing info panel */
+    .processing-info {
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 100, 150, 0.1) 100%);
+      border: 1px solid rgba(0, 212, 255, 0.25);
+      border-radius: 1rem;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: none;
+      box-shadow: 0 4px 15px rgba(0, 212, 255, 0.1);
+    }
+
+    .processing-info.visible {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .processing-info h3 {
+      color: #00d4ff;
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .info-item {
+      text-align: center;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 1rem;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .info-item .label {
+      font-size: 0.75rem;
+      color: #8a8a9a;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .info-item .value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #e8e8e8;
+    }
+
+    .info-item .value.cost {
+      color: #00ff88;
+    }
+
+    .info-item .value.speakers {
+      color: #ffaa00;
+    }
+
+    .info-item .value.accuracy {
+      color: #00ff88;
+    }
+
+    .info-item .value.accuracy.warning {
+      color: #ffaa00;
+    }
+
+    .info-item .value.accuracy.error {
+      color: #ff4757;
+    }
+
+    .info-item .value.wer {
+      color: #00d4ff;
+    }
+
+    /* Comparison panel */
+    .comparison-panel {
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.08) 0%, rgba(0, 100, 80, 0.08) 100%);
+      border: 1px solid rgba(0, 255, 136, 0.2);
+      border-radius: 1rem;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: none;
+      box-shadow: 0 4px 15px rgba(0, 255, 136, 0.08);
+    }
+
+    .comparison-panel.visible {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .comparison-panel h3 {
+      color: #00ff88;
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Diff highlighting */
+    .diff-match {
+      color: #00ff88;
+    }
+
+    .diff-insertion {
+      background: rgba(0, 255, 136, 0.25);
+      color: #00ff88;
+      padding: 0.15rem 0.3rem;
+      border-radius: 3px;
+      text-decoration: underline;
+      font-weight: 500;
+    }
+
+    .diff-deletion {
+      background: rgba(255, 71, 87, 0.25);
+      color: #ff4757;
+      padding: 0.15rem 0.3rem;
+      border-radius: 3px;
+      text-decoration: line-through;
+    }
+
+    .diff-substitution {
+      background: rgba(255, 170, 0, 0.25);
+      color: #ffaa00;
+      padding: 0.15rem 0.3rem;
+      border-radius: 3px;
+    }
+
+    /* Speaker label colors */
+    .speaker-label {
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
+      border-radius: 0.5rem;
+      margin-right: 0.5rem;
+      font-size: 0.85rem;
+      display: inline-block;
+    }
+
+    .speaker-1 { 
+      color: #00d4ff; 
+      background: rgba(0, 212, 255, 0.15);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+    }
+    .speaker-2 { 
+      color: #ff6b9d; 
+      background: rgba(255, 107, 157, 0.15);
+      border: 1px solid rgba(255, 107, 157, 0.3);
+    }
+    .speaker-3 { 
+      color: #00ff88; 
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+    }
+    .speaker-4 { 
+      color: #ffaa00; 
+      background: rgba(255, 170, 0, 0.15);
+      border: 1px solid rgba(255, 170, 0, 0.3);
+    }
+    .speaker-5 { 
+      color: #b388ff; 
+      background: rgba(179, 136, 255, 0.15);
+      border: 1px solid rgba(179, 136, 255, 0.3);
+    }
+    .speaker-unknown { 
+      color: #a0a0a0; 
+      background: rgba(160, 160, 160, 0.15);
+      border: 1px solid rgba(160, 160, 160, 0.3);
+    }
+
+    /* Speaker segment card */
+    .speaker-segment {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 0.75rem;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.2s ease;
+    }
+
+    .speaker-segment:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .speaker-segment:last-child {
+      margin-bottom: 0;
+    }
+
+    .speaker-segment-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .speaker-timestamp {
+      color: #6a6a8a;
+      font-size: 0.7rem;
+      font-family: 'Consolas', 'Monaco', monospace;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0.1rem 0.35rem;
+      border-radius: 0.25rem;
+    }
+
+    .speaker-text {
+      color: #e8e8e8;
+      line-height: 1.5;
+      font-size: 0.9rem;
+      padding-left: 0.25rem;
+    }
+
+    /* Copy button */
+    .copy-btn {
+      background: rgba(0, 212, 255, 0.2);
+      border: 1px solid rgba(0, 212, 255, 0.4);
+      color: #00d4ff;
+      padding: 0.3rem 0.6rem;
+      border-radius: 0.4rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-left: 0.75rem;
+    }
+
+    .copy-btn:hover {
+      background: rgba(0, 212, 255, 0.3);
+      border-color: #00d4ff;
+    }
+
+    .copy-btn.copied {
+      background: rgba(0, 255, 136, 0.2);
+      border-color: #00ff88;
+      color: #00ff88;
+    }
+
+    .copy-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .results-container {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>📝 Real-Time Transcription</h1>
-      <p class="subtitle">Convert your speech to text in real-time using Azure Speech Services</p>
+      <h1>🎵 Audio Transcription</h1>
+      <p class="subtitle">Upload an audio file to transcribe using Azure Speech Services</p>
     </header>
 
-    <div class="controls">
-      <button id="startTranscriptionBtn" onclick="startTranscription()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+    <div class="upload-section">
+      <h2>Upload Audio File</h2>
+      
+      <div class="file-upload-area" id="dropZone" onclick="document.getElementById('audioFile').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        Start Transcription
-      </button>
-      <button id="stopTranscriptionBtn" onclick="stopTranscription()" disabled>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <rect x="6" y="6" width="12" height="12" rx="2"/>
-        </svg>
-        Stop Transcription
-      </button>
+        <p>Click to upload or drag and drop</p>
+        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Supported formats: WAV, MP3, OGG, FLAC, M4A</p>
+        <div class="file-name" id="fileName"></div>
+      </div>
+      <input type="file" id="audioFile" class="file-input" accept=".wav,.mp3,.ogg,.flac,.m4a,audio/*" onchange="handleFileSelect(event)">
+
+      <div class="audio-player" id="audioPlayerContainer" style="display: none;">
+        <audio id="audioPlayer" controls></audio>
+      </div>
+
+      <div class="input-group" style="margin-top: 1.5rem;">
+        <label>Reference Transcription File (optional)</label>
+        <div class="file-upload-area reference-upload" id="referenceDropZone" onclick="document.getElementById('referenceFile').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <p>Click to upload or drag and drop a text file</p>
+          <p style="font-size: 0.85rem; margin-top: 0.5rem;">Supported formats: TXT</p>
+          <div class="file-name" id="referenceFileName"></div>
+        </div>
+        <input type="file" id="referenceFile" class="file-input" accept=".txt,text/plain" onchange="handleReferenceFileSelect(event)">
+        <p class="hint">Upload a text file containing the expected transcription for comparison</p>
+      </div>
+
+      <div class="options-group" style="margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+        <label class="toggle-switch">
+          <input type="checkbox" id="enableDiarization" checked>
+          <span class="toggle-slider"></span>
+        </label>
+        <div>
+          <span style="color: #e8e8e8;">Enable Speaker Diarization</span>
+          <p class="hint" style="margin: 0.25rem 0 0 0;">Identify different speakers in the audio</p>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="transcribeBtn" onclick="transcribeAudio()" disabled>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+          </svg>
+          Transcribe
+        </button>
+        <button id="clearBtn" onclick="clearAll()">
+          Clear
+        </button>
+      </div>
     </div>
 
     <div class="status-bar">
       <div id="statusIndicator" class="status-indicator"></div>
-      <span id="statusText">Ready to start</span>
+      <span id="statusText">Upload an audio file to begin</span>
     </div>
 
-    <div class="transcription-panel">
-      <div class="panel-header">
-        <h2>Transcription Output</h2>
-        <button class="clear-btn" onclick="clearTranscription()">Clear</button>
+    <div class="processing-info" id="processingInfo">
+      <h3>📊 Processing Details</h3>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="label">Audio Duration</div>
+          <div class="value" id="audioDuration">--</div>
+        </div>
+        <div class="info-item">
+          <div class="label">Speakers Detected</div>
+          <div class="value speakers" id="speakerCount">--</div>
+        </div>
+        <div class="info-item">
+          <div class="label">Estimated Cost</div>
+          <div class="value cost" id="estimatedCost">--</div>
+        </div>
       </div>
-      <div id="transcriptionContent">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-          </svg>
-          <p>Click "Start Transcription" to begin</p>
+    </div>
+
+    <div class="comparison-panel" id="comparisonPanel">
+      <h3>📈 Accuracy Comparison</h3>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="label">Accuracy</div>
+          <div class="value accuracy" id="accuracyValue">--</div>
+        </div>
+        <div class="info-item">
+          <div class="label">Word Error Rate (WER)</div>
+          <div class="value wer" id="werValue">--</div>
+        </div>
+        <div class="info-item">
+          <div class="label">Words Matched</div>
+          <div class="value" id="wordsMatched">--</div>
+        </div>
+        <div class="info-item">
+          <div class="label">Insertions / Deletions / Substitutions</div>
+          <div class="value" id="errorBreakdown">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="results-panel" id="resultsPanel">
+      <h2>Results</h2>
+      <div class="results-container" id="resultsContainer">
+        <div class="result-column">
+          <h3>🎯 Transcription 
+            <button class="copy-btn" id="copyBtn" onclick="copyTranscription()" style="display: none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="copyIcon">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <span id="copyText">Copy</span>
+            </button>
+            <span id="diffToggleContainer" style="display: none; font-weight: normal; font-size: 0.8rem; margin-left: 1rem;"><label><input type="checkbox" id="showDiff" onchange="toggleDiffView()"> Show differences</label></span>
+          </h3>
+          <div class="result-content transcription" id="transcriptionResult">
+            <div class="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+              </svg>
+              <p>Transcription will appear here</p>
+            </div>
+          </div>
+        </div>
+        <div class="result-column" id="referenceColumn">
+          <h3>📄 Reference Text</h3>
+          <div class="result-content reference" id="referenceResult">
+            <div class="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              <p>Reference text will appear here<br>(if file uploaded)</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -328,12 +853,309 @@
   </div>
 
   <script>
-    let socket = null;
-    let mediaStream = null;
-    let audioContext = null;
-    let processor = null;
-    let source = null;
-    let partialElement = null;
+    let selectedFile = null;
+    let selectedReferenceFile = null;
+    let referenceTextContent = null;
+    let lastTranscription = null;
+    let lastTranscriptionFormatted = null; // With speaker labels for copying
+    let lastComparisonResult = null;
+
+    // Word Error Rate (WER) calculation using Levenshtein distance
+    function calculateWER(reference, hypothesis) {
+      // Normalize and tokenize
+      const normalize = (text) => {
+        return text.toLowerCase()
+          .replace(/[^\w\s]/g, '') // Remove punctuation
+          .replace(/\s+/g, ' ')    // Normalize whitespace
+          .trim()
+          .split(' ')
+          .filter(w => w.length > 0);
+      };
+
+      const refWords = normalize(reference);
+      const hypWords = normalize(hypothesis);
+
+      if (refWords.length === 0) {
+        return { wer: hypWords.length > 0 ? 1 : 0, accuracy: hypWords.length > 0 ? 0 : 100, details: null };
+      }
+
+      // Dynamic programming for edit distance with tracking
+      const m = refWords.length;
+      const n = hypWords.length;
+      
+      // Create distance matrix
+      const d = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+      const ops = Array(m + 1).fill(null).map(() => Array(n + 1).fill(null));
+
+      for (let i = 0; i <= m; i++) {
+        d[i][0] = i;
+        if (i > 0) ops[i][0] = 'D'; // Deletion
+      }
+      for (let j = 0; j <= n; j++) {
+        d[0][j] = j;
+        if (j > 0) ops[0][j] = 'I'; // Insertion
+      }
+
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          if (refWords[i - 1] === hypWords[j - 1]) {
+            d[i][j] = d[i - 1][j - 1];
+            ops[i][j] = 'M'; // Match
+          } else {
+            const del = d[i - 1][j] + 1;     // Deletion
+            const ins = d[i][j - 1] + 1;     // Insertion
+            const sub = d[i - 1][j - 1] + 1; // Substitution
+
+            if (del <= ins && del <= sub) {
+              d[i][j] = del;
+              ops[i][j] = 'D';
+            } else if (ins <= del && ins <= sub) {
+              d[i][j] = ins;
+              ops[i][j] = 'I';
+            } else {
+              d[i][j] = sub;
+              ops[i][j] = 'S';
+            }
+          }
+        }
+      }
+
+      // Backtrack to get alignment
+      const alignment = [];
+      let i = m, j = n;
+      while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && ops[i][j] === 'M') {
+          alignment.unshift({ type: 'match', ref: refWords[i - 1], hyp: hypWords[j - 1] });
+          i--; j--;
+        } else if (i > 0 && j > 0 && ops[i][j] === 'S') {
+          alignment.unshift({ type: 'substitution', ref: refWords[i - 1], hyp: hypWords[j - 1] });
+          i--; j--;
+        } else if (i > 0 && (j === 0 || ops[i][j] === 'D')) {
+          alignment.unshift({ type: 'deletion', ref: refWords[i - 1], hyp: null });
+          i--;
+        } else {
+          alignment.unshift({ type: 'insertion', ref: null, hyp: hypWords[j - 1] });
+          j--;
+        }
+      }
+
+      // Count errors
+      let substitutions = 0, deletions = 0, insertions = 0, matches = 0;
+      alignment.forEach(a => {
+        if (a.type === 'match') matches++;
+        else if (a.type === 'substitution') substitutions++;
+        else if (a.type === 'deletion') deletions++;
+        else if (a.type === 'insertion') insertions++;
+      });
+
+      const totalErrors = substitutions + deletions + insertions;
+      const wer = totalErrors / m;
+      const accuracy = Math.max(0, (1 - wer) * 100);
+
+      return {
+        wer: wer,
+        accuracy: accuracy,
+        details: {
+          matches: matches,
+          substitutions: substitutions,
+          deletions: deletions,
+          insertions: insertions,
+          totalRefWords: m,
+          totalHypWords: n,
+          alignment: alignment
+        }
+      };
+    }
+
+    // Generate diff HTML
+    function generateDiffHtml(alignment) {
+      let html = '';
+      alignment.forEach(item => {
+        if (item.type === 'match') {
+          html += `<span class="diff-match">${escapeHtml(item.hyp)}</span> `;
+        } else if (item.type === 'substitution') {
+          html += `<span class="diff-deletion" title="Expected: ${escapeHtml(item.ref)}">${escapeHtml(item.ref)}</span>`;
+          html += `<span class="diff-insertion" title="Got: ${escapeHtml(item.hyp)}">${escapeHtml(item.hyp)}</span> `;
+        } else if (item.type === 'deletion') {
+          html += `<span class="diff-deletion" title="Missing word">${escapeHtml(item.ref)}</span> `;
+        } else if (item.type === 'insertion') {
+          html += `<span class="diff-insertion" title="Extra word">${escapeHtml(item.hyp)}</span> `;
+        }
+      });
+      return html;
+    }
+
+    function toggleDiffView() {
+      const showDiff = document.getElementById('showDiff').checked;
+      const transcriptionResult = document.getElementById('transcriptionResult');
+      
+      if (showDiff && lastComparisonResult && lastComparisonResult.details) {
+        transcriptionResult.innerHTML = generateDiffHtml(lastComparisonResult.details.alignment);
+      } else if (lastTranscription) {
+        transcriptionResult.textContent = lastTranscription;
+      }
+    }
+
+    // Copy transcription to clipboard (with speaker labels)
+    async function copyTranscription() {
+      if (!lastTranscriptionFormatted) return;
+      
+      const copyBtn = document.getElementById('copyBtn');
+      const copyText = document.getElementById('copyText');
+      const copyIcon = document.getElementById('copyIcon');
+      
+      try {
+        await navigator.clipboard.writeText(lastTranscriptionFormatted);
+        
+        // Show success state
+        copyBtn.classList.add('copied');
+        copyText.textContent = 'Copied!';
+        copyIcon.innerHTML = '<polyline points="20 6 9 17 4 12"/>';
+        
+        // Reset after 2 seconds
+        setTimeout(() => {
+          copyBtn.classList.remove('copied');
+          copyText.textContent = 'Copy';
+          copyIcon.innerHTML = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>';
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        copyText.textContent = 'Failed';
+        setTimeout(() => {
+          copyText.textContent = 'Copy';
+        }, 2000);
+      }
+    }
+
+    // Drag and drop handlers for audio file
+    const dropZone = document.getElementById('dropZone');
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('audio/') || /\.(wav|mp3|ogg|flac|m4a)$/i.test(file.name)) {
+          handleFile(file);
+        } else {
+          updateStatus('Please upload an audio file', false, true);
+        }
+      }
+    });
+
+    // Drag and drop handlers for reference file
+    const referenceDropZone = document.getElementById('referenceDropZone');
+
+    referenceDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      referenceDropZone.classList.add('drag-over');
+    });
+
+    referenceDropZone.addEventListener('dragleave', () => {
+      referenceDropZone.classList.remove('drag-over');
+    });
+
+    referenceDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      referenceDropZone.classList.remove('drag-over');
+      
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        const file = files[0];
+        if (file.type === 'text/plain' || /\.txt$/i.test(file.name)) {
+          handleReferenceFile(file);
+        } else {
+          updateStatus('Please upload a text file (.txt)', false, true);
+        }
+      }
+    });
+
+    function handleReferenceFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        handleReferenceFile(file);
+      }
+    }
+
+    function handleReferenceFile(file) {
+      selectedReferenceFile = file;
+      document.getElementById('referenceFileName').textContent = file.name;
+      
+      // Read the file content
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        referenceTextContent = e.target.result;
+      };
+      reader.readAsText(file);
+    }
+
+    // Supported audio file extensions
+    const SUPPORTED_AUDIO_EXTENSIONS = ['.wav', '.mp3', '.ogg', '.flac', '.m4a', '.mp4', '.aac'];
+    const SUPPORTED_AUDIO_MIMETYPES = ['audio/wav', 'audio/wave', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/flac', 'audio/x-flac', 'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/x-m4a'];
+
+    function validateAudioFile(file) {
+      // Check file extension
+      const fileName = file.name.toLowerCase();
+      const fileExtension = '.' + fileName.split('.').pop();
+      
+      const isValidExtension = SUPPORTED_AUDIO_EXTENSIONS.includes(fileExtension);
+      
+      // Check MIME type (fallback validation)
+      const isValidMimeType = SUPPORTED_AUDIO_MIMETYPES.includes(file.type) || file.type.startsWith('audio/');
+      
+      if (!isValidExtension) {
+        return {
+          valid: false,
+          error: `Unsupported file type: ${fileExtension}. Please upload an audio file in one of the supported formats: WAV, MP3, OGG, FLAC, M4A.`
+        };
+      }
+      
+      return { valid: true };
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        handleFile(file);
+      }
+    }
+
+    function handleFile(file) {
+      // Validate file type before accepting
+      const validation = validateAudioFile(file);
+      if (!validation.valid) {
+        selectedFile = null;
+        document.getElementById('fileName').textContent = '';
+        document.getElementById('transcribeBtn').disabled = true;
+        document.getElementById('audioPlayerContainer').style.display = 'none';
+        updateStatus(validation.error, false, true);
+        // Clear the file input
+        document.getElementById('audioFile').value = '';
+        return;
+      }
+
+      selectedFile = file;
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('transcribeBtn').disabled = false;
+      updateStatus('Ready to transcribe', false, false);
+
+      // Show audio player
+      const audioPlayer = document.getElementById('audioPlayer');
+      const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+      audioPlayer.src = URL.createObjectURL(file);
+      audioPlayerContainer.style.display = 'block';
+    }
 
     function updateStatus(status, isActive = false, isError = false) {
       const indicator = document.getElementById('statusIndicator');
@@ -346,193 +1168,302 @@
       text.textContent = status;
     }
 
-    function formatTimestamp() {
-      return new Date().toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
-      });
-    }
-
-    function addTranscriptEntry(text, isFinal = false) {
-      const content = document.getElementById('transcriptionContent');
-      
-      // Remove empty state if present
-      const emptyState = content.querySelector('.empty-state');
-      if (emptyState) emptyState.remove();
-
-      if (isFinal) {
-        // Remove partial element if exists
-        if (partialElement) {
-          partialElement.remove();
-          partialElement = null;
-        }
-        
-        // Add final entry
-        const entry = document.createElement('div');
-        entry.className = 'transcript-entry final';
-        entry.innerHTML = `
-          <div class="timestamp">${formatTimestamp()}</div>
-          <div class="text">${escapeHtml(text)}</div>
-        `;
-        content.appendChild(entry);
-        content.scrollTop = content.scrollHeight;
-      } else {
-        // Update or create partial element
-        if (!partialElement) {
-          partialElement = document.createElement('div');
-          partialElement.className = 'transcript-entry partial';
-          content.appendChild(partialElement);
-        }
-        partialElement.innerHTML = `
-          <div class="timestamp">${formatTimestamp()} (recognizing...)</div>
-          <div class="text">${escapeHtml(text)}</div>
-        `;
-        content.scrollTop = content.scrollHeight;
-      }
-    }
-
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
 
-    function clearTranscription() {
-      const content = document.getElementById('transcriptionContent');
-      content.innerHTML = `
+    async function transcribeAudio() {
+      if (!selectedFile) {
+        updateStatus('Please select an audio file', false, true);
+        return;
+      }
+
+      const transcribeBtn = document.getElementById('transcribeBtn');
+      const transcriptionResult = document.getElementById('transcriptionResult');
+      const referenceResult = document.getElementById('referenceResult');
+
+      // Disable button and show loading
+      transcribeBtn.disabled = true;
+      transcribeBtn.innerHTML = '<span class="loading-spinner"></span> Transcribing...';
+      updateStatus('Transcribing audio...', true, false);
+
+      // Clear previous results and state
+      transcriptionResult.innerHTML = '<div class="empty-state"><span class="loading-spinner" style="width: 32px; height: 32px; border-width: 3px;"></span><p style="margin-top: 1rem;">Processing audio...</p></div>';
+      lastTranscription = null;
+      lastTranscriptionFormatted = null;
+      lastComparisonResult = null;
+
+      // Hide panels
+      document.getElementById('processingInfo').classList.remove('visible');
+      document.getElementById('comparisonPanel').classList.remove('visible');
+      document.getElementById('diffToggleContainer').style.display = 'none';
+      document.getElementById('showDiff').checked = false;
+
+      // Display reference text if file was uploaded (with formatting)
+      if (referenceTextContent) {
+        referenceResult.innerHTML = formatReferenceText(referenceTextContent);
+      }
+
+      try {
+        // Create form data with the audio file and options
+        const formData = new FormData();
+        formData.append('audio', selectedFile);
+        formData.append('enableDiarization', document.getElementById('enableDiarization').checked);
+
+        const response = await fetch('/transcription/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Transcription failed: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        // Update processing info panel
+        const processingInfo = document.getElementById('processingInfo');
+        if (result.duration_seconds !== undefined) {
+          const minutes = Math.floor(result.duration_seconds / 60);
+          const seconds = Math.round(result.duration_seconds % 60);
+          document.getElementById('audioDuration').textContent = `${minutes}m ${seconds}s`;
+        }
+        if (result.speakers) {
+          document.getElementById('speakerCount').textContent = result.speakers.length;
+        }
+        if (result.estimated_cost_usd !== undefined) {
+          document.getElementById('estimatedCost').textContent = `$${result.estimated_cost_usd.toFixed(4)}`;
+        }
+        processingInfo.classList.add('visible');
+        
+        if (result.transcription) {
+          // Store for diff toggle
+          lastTranscription = result.transcription;
+          lastTranscriptionFormatted = result.transcription;
+          
+          // Format transcription with speaker colors if diarization is enabled
+          if (result.segments && result.segments.length > 0 && document.getElementById('enableDiarization').checked) {
+            transcriptionResult.innerHTML = formatTranscriptionWithSpeakers(result.segments);
+            // For comparison, use plain text
+            lastTranscription = result.segments.map(s => s.text).join(' ');
+            // For copying, include speaker labels
+            lastTranscriptionFormatted = formatTranscriptionAsText(result.segments);
+          } else {
+            transcriptionResult.textContent = result.transcription;
+          }
+          
+          // Perform comparison if reference text is available
+          if (referenceTextContent && result.transcription) {
+            const plainTranscription = result.segments ? 
+              result.segments.map(s => s.text).join(' ') : result.transcription;
+            
+            lastComparisonResult = calculateWER(referenceTextContent, plainTranscription);
+            
+            // Update comparison panel
+            const comparisonPanel = document.getElementById('comparisonPanel');
+            const accuracyEl = document.getElementById('accuracyValue');
+            
+            accuracyEl.textContent = `${lastComparisonResult.accuracy.toFixed(1)}%`;
+            accuracyEl.classList.remove('warning', 'error');
+            if (lastComparisonResult.accuracy >= 90) {
+              // Good - keep default green
+            } else if (lastComparisonResult.accuracy >= 70) {
+              accuracyEl.classList.add('warning');
+            } else {
+              accuracyEl.classList.add('error');
+            }
+            
+            document.getElementById('werValue').textContent = `${(lastComparisonResult.wer * 100).toFixed(1)}%`;
+            
+            if (lastComparisonResult.details) {
+              const d = lastComparisonResult.details;
+              document.getElementById('wordsMatched').textContent = 
+                `${d.matches} / ${d.totalRefWords}`;
+              document.getElementById('errorBreakdown').textContent = 
+                `${d.insertions} / ${d.deletions} / ${d.substitutions}`;
+            }
+            
+            comparisonPanel.classList.add('visible');
+            
+            // Show diff toggle option (only for non-diarization mode)
+            if (!document.getElementById('enableDiarization').checked) {
+              document.getElementById('diffToggleContainer').style.display = 'inline';
+            }
+          }
+          
+          // Show copy button
+          document.getElementById('copyBtn').style.display = 'inline-flex';
+          
+          updateStatus('Transcription complete', false, false);
+        } else {
+          transcriptionResult.innerHTML = '<div class="empty-state"><p>No speech detected in the audio</p></div>';
+          document.getElementById('copyBtn').style.display = 'none';
+          updateStatus('No speech detected', false, false);
+        }
+
+      } catch (error) {
+        console.error('Transcription error:', error);
+        transcriptionResult.innerHTML = `<div class="empty-state"><p style="color: #ff4757;">Error: ${escapeHtml(error.message)}</p></div>`;
+        updateStatus('Transcription failed', false, true);
+      } finally {
+        transcribeBtn.disabled = false;
+        transcribeBtn.innerHTML = `
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+          </svg>
+          Transcribe
+        `;
+      }
+    }
+
+    // Shared function to render speaker segments as styled cards
+    function renderSpeakerSegments(segments) {
+      const speakerMap = {};
+      let speakerIndex = 1;
+      
+      // Filter out segments with no text
+      const validSegments = segments.filter(seg => seg.text && seg.text.trim());
+      
+      const lines = validSegments.map(seg => {
+        let speaker = seg.speaker;
+        
+        // Map guest speakers to Speaker X
+        if (speaker && speaker.startsWith('Guest-')) {
+          const guestNum = speaker.replace('Guest-', '');
+          speaker = `Speaker ${guestNum}`;
+        }
+        
+        // Assign color class for consistent coloring
+        if (!speakerMap[speaker]) {
+          speakerMap[speaker] = `speaker-${speakerIndex}`;
+          speakerIndex = Math.min(speakerIndex + 1, 5);
+        }
+        
+        const colorClass = speakerMap[speaker] || 'speaker-unknown';
+        const timestamp = seg.offset !== undefined ? formatTimestamp(seg.offset) : '';
+        
+        return `<div class="speaker-segment">
+          <div class="speaker-segment-header">
+            <span class="speaker-label ${colorClass}">${escapeHtml(speaker)}</span>
+            ${timestamp ? `<span class="speaker-timestamp">⏱ ${timestamp}</span>` : ''}
+          </div>
+          <div class="speaker-text">${escapeHtml(seg.text)}</div>
+        </div>`;
+      });
+      
+      return lines.join('');
+    }
+
+    // Format transcription segments (from API response)
+    function formatTranscriptionWithSpeakers(segments) {
+      return renderSpeakerSegments(segments);
+    }
+
+    // Format transcription as plain text with speaker labels (for copying)
+    function formatTranscriptionAsText(segments) {
+      return segments
+        .filter(seg => seg.text && seg.text.trim()) // Skip empty segments
+        .map(seg => {
+          let speaker = seg.speaker;
+          
+          // Map guest speakers to Speaker X
+          if (speaker && speaker.startsWith('Guest-')) {
+            const guestNum = speaker.replace('Guest-', '');
+            speaker = `Speaker ${guestNum}`;
+          }
+          
+          return `[${speaker}]\n${seg.text}`;
+        }).join('\n\n');
+    }
+
+    function formatTimestamp(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      const ms = Math.round((seconds % 1) * 10);
+      if (mins > 0) {
+        return `${mins}:${secs.toString().padStart(2, '0')}.${ms}`;
+      }
+      return `${secs}.${ms}s`;
+    }
+
+    // Format reference text by parsing [Speaker X] patterns into segments
+    function formatReferenceText(text) {
+      const speakerPattern = /\[([^\]]+)\]\s*\n?/g;
+      
+      // Check if text contains speaker labels
+      if (!speakerPattern.test(text)) {
+        return `<div class="speaker-text" style="padding: 0;">${escapeHtml(text)}</div>`;
+      }
+      
+      // Parse text into segments: split by [Speaker] labels
+      const parts = text.split(/\[([^\]]+)\]\s*\n?/);
+      const segments = [];
+      
+      // parts: [text before first speaker, speaker1, text1, speaker2, text2, ...]
+      for (let i = 1; i < parts.length; i += 2) {
+        const speaker = parts[i];
+        const content = parts[i + 1] ? parts[i + 1].trim() : '';
+        if (content) {
+          segments.push({ speaker, text: content });
+        }
+      }
+      
+      if (segments.length === 0) {
+        return `<div class="speaker-text" style="padding: 0;">${escapeHtml(text)}</div>`;
+      }
+      
+      // Reuse shared rendering function
+      return renderSpeakerSegments(segments);
+    }
+
+    function clearAll() {
+      selectedFile = null;
+      selectedReferenceFile = null;
+      referenceTextContent = null;
+      lastTranscription = null;
+      lastTranscriptionFormatted = null;
+      lastComparisonResult = null;
+      
+      document.getElementById('audioFile').value = '';
+      document.getElementById('fileName').textContent = '';
+      document.getElementById('referenceFile').value = '';
+      document.getElementById('referenceFileName').textContent = '';
+      document.getElementById('transcribeBtn').disabled = true;
+      document.getElementById('audioPlayerContainer').style.display = 'none';
+      document.getElementById('audioPlayer').src = '';
+      document.getElementById('processingInfo').classList.remove('visible');
+      document.getElementById('comparisonPanel').classList.remove('visible');
+      document.getElementById('diffToggleContainer').style.display = 'none';
+      document.getElementById('showDiff').checked = false;
+      document.getElementById('copyBtn').style.display = 'none';
+      
+      document.getElementById('transcriptionResult').innerHTML = `
         <div class="empty-state">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
             <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
           </svg>
-          <p>Click "Start Transcription" to begin</p>
+          <p>Transcription will appear here</p>
         </div>
       `;
-      partialElement = null;
-    }
-
-    function float32ToInt16(float32Array) {
-      const int16 = new Int16Array(float32Array.length);
-      for (let i = 0; i < float32Array.length; i++) {
-        const s = Math.max(-1, Math.min(1, float32Array[i]));
-        int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-      }
-      return int16;
-    }
-
-    async function startMicrophone() {
-      audioContext = new AudioContext({ sampleRate: 16000 }); // 16kHz for speech recognition
       
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000
-        }
-      });
-
-      source = audioContext.createMediaStreamSource(mediaStream);
-      processor = audioContext.createScriptProcessor(4096, 1, 1);
-
-      processor.onaudioprocess = (event) => {
-        const input = event.inputBuffer.getChannelData(0);
-        const pcm = float32ToInt16(input);
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(pcm.buffer);
-        }
-      };
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-    }
-
-    function stopMicrophone() {
-      if (processor) {
-        processor.disconnect();
-        processor = null;
-      }
-      if (source) {
-        source.disconnect();
-        source = null;
-      }
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
-      }
-      if (audioContext) {
-        audioContext.close();
-        audioContext = null;
-      }
-    }
-
-    async function startTranscription() {
-      try {
-        updateStatus('Connecting...', false, false);
-        
-        const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-        const wsHost = window.location.host;
-        socket = new WebSocket(`${wsProtocol}://${wsHost}/transcription/ws`);
-        socket.binaryType = "arraybuffer";
-
-        socket.onopen = async () => {
-          console.log("Transcription WebSocket opened");
-          updateStatus('Listening...', true, false);
-          
-          await startMicrophone();
-          
-          document.getElementById('startTranscriptionBtn').disabled = true;
-          document.getElementById('stopTranscriptionBtn').disabled = false;
-        };
-
-        socket.onmessage = (event) => {
-          if (typeof event.data === "string") {
-            const msg = JSON.parse(event.data);
-            
-            if (msg.type === 'partial') {
-              addTranscriptEntry(msg.text, false);
-            } else if (msg.type === 'final') {
-              addTranscriptEntry(msg.text, true);
-            } else if (msg.type === 'error') {
-              console.error("Transcription error:", msg.message);
-              updateStatus(`Error: ${msg.message}`, false, true);
-            }
-          }
-        };
-
-        socket.onclose = () => {
-          console.log("Transcription WebSocket closed");
-          stopMicrophone();
-          updateStatus('Disconnected', false, false);
-          
-          document.getElementById('startTranscriptionBtn').disabled = false;
-          document.getElementById('stopTranscriptionBtn').disabled = true;
-          
-          // Clear partial element
-          if (partialElement) {
-            partialElement.remove();
-            partialElement = null;
-          }
-        };
-
-        socket.onerror = (error) => {
-          console.error("WebSocket error:", error);
-          updateStatus('Connection error', false, true);
-        };
-
-      } catch (error) {
-        console.error("Failed to start transcription:", error);
-        updateStatus(`Error: ${error.message}`, false, true);
-      }
-    }
-
-    function stopTranscription() {
-      if (socket) {
-        socket.close();
-        socket = null;
-      }
-      updateStatus('Ready to start', false, false);
+      document.getElementById('referenceResult').innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <p>Reference text will appear here<br>(if file uploaded)</p>
+        </div>
+      `;
+      
+      updateStatus('Upload an audio file to begin', false, false);
     }
   </script>
 </body>

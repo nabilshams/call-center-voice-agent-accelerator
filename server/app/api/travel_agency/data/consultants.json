@@ -1,0 +1,90 @@
+{
+  "stores": [
+    {
+      "store_id": "STORE-CHC-CITY",
+      "name": "Wanderlux Christchurch City",
+      "city": "Christchurch",
+      "suburb": "Central City",
+      "address": "123 Cashel Street, Christchurch Central",
+      "phone": "03 366 1234",
+      "hours": "Mon-Fri 9:00am-5:30pm, Sat 10:00am-3:00pm, Sun closed",
+      "maps_url": "https://maps.google.com/?q=House+of+Travel+Christchurch+City"
+    },
+    {
+      "store_id": "STORE-CHC-MERIVALE",
+      "name": "Wanderlux Merivale",
+      "city": "Christchurch",
+      "suburb": "Merivale",
+      "address": "189 Papanui Road, Merivale",
+      "phone": "03 355 5678",
+      "hours": "Mon-Fri 9:00am-5:30pm, Sat 10:00am-2:00pm, Sun closed",
+      "maps_url": "https://maps.google.com/?q=House+of+Travel+Merivale"
+    },
+    {
+      "store_id": "STORE-AKL-CITY",
+      "name": "Wanderlux Auckland City",
+      "city": "Auckland",
+      "suburb": "Central City",
+      "address": "45 Queen Street, Auckland CBD",
+      "phone": "09 309 4321",
+      "hours": "Mon-Fri 8:30am-5:30pm, Sat 10:00am-3:00pm, Sun closed",
+      "maps_url": "https://maps.google.com/?q=House+of+Travel+Auckland+City"
+    },
+    {
+      "store_id": "STORE-WLG-CITY",
+      "name": "Wanderlux Wellington City",
+      "city": "Wellington",
+      "suburb": "Central City",
+      "address": "78 Lambton Quay, Wellington",
+      "phone": "04 472 9876",
+      "hours": "Mon-Fri 9:00am-5:30pm, Sat 10:00am-2:00pm, Sun closed",
+      "maps_url": "https://maps.google.com/?q=House+of+Travel+Wellington+City"
+    }
+  ],
+  "consultants": [
+    {
+      "consultant_id": "CONS-CHC-001",
+      "name": "Sarah Mitchell",
+      "store_id": "STORE-CHC-CITY",
+      "city": "Christchurch",
+      "specialisations": ["Cruise", "Luxury"],
+      "languages": ["English"],
+      "rating": 4.9,
+      "photo_url": "https://www.wanderlux.co.nz/consultants/sarah-mitchell.jpg",
+      "video_appointment_url": "https://outlook.office.com/bookwithme/sarah-mitchell"
+    },
+    {
+      "consultant_id": "CONS-CHC-002",
+      "name": "James Patel",
+      "store_id": "STORE-CHC-MERIVALE",
+      "city": "Christchurch",
+      "specialisations": ["Cruise", "Family"],
+      "languages": ["English", "Hindi"],
+      "rating": 4.8,
+      "photo_url": "https://www.wanderlux.co.nz/consultants/james-patel.jpg",
+      "video_appointment_url": "https://outlook.office.com/bookwithme/james-patel"
+    },
+    {
+      "consultant_id": "CONS-AKL-001",
+      "name": "Emily Chen",
+      "store_id": "STORE-AKL-CITY",
+      "city": "Auckland",
+      "specialisations": ["Honeymoon", "Luxury", "Adventure"],
+      "languages": ["English", "Mandarin"],
+      "rating": 5.0,
+      "photo_url": "https://www.wanderlux.co.nz/consultants/emily-chen.jpg",
+      "video_appointment_url": "https://outlook.office.com/bookwithme/emily-chen"
+    },
+    {
+      "consultant_id": "CONS-WLG-001",
+      "name": "Michael O'Brien",
+      "store_id": "STORE-WLG-CITY",
+      "city": "Wellington",
+      "specialisations": ["Corporate", "Group", "Rail"],
+      "languages": ["English"],
+      "rating": 4.7,
+      "photo_url": "https://www.wanderlux.co.nz/consultants/michael-obrien.jpg",
+      "video_appointment_url": "https://outlook.office.com/bookwithme/michael-obrien"
+    }
+  ]
+}

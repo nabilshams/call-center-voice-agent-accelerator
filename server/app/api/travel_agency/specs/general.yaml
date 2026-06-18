@@ -1,0 +1,136 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - General Information API
+  version: 1.0.0
+  description: >-
+    Store info, FAQ search, payment options, gift cards, app info, insurance
+    overview, and travel advisories.
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/general
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/general
+    description: Local development
+paths:
+  /stores/{city}:
+    get:
+      operationId: get_store_info
+      summary: Get store info for a city
+      description: Returns Wanderlux stores in a given city or suburb, with address, phone, and hours.
+      parameters:
+        - { name: city, in: path, required: true, schema: { type: string, example: Christchurch } }
+      responses:
+        "200":
+          description: Stores in city
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  stores: { type: array, items: { $ref: "#/components/schemas/Store" } }
+  /faqs:
+    get:
+      operationId: get_faq_answer
+      summary: Search FAQ knowledge base
+      description: Searches the Wanderlux FAQ knowledge base by question or keyword. Omit the query to return all FAQs. Covers payment, gift cards, the app, and deal alerts.
+      parameters:
+        - { name: q, in: query, schema: { type: string, example: payment }, description: "Question or keyword" }
+      responses:
+        "200":
+          description: Matching FAQs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  faqs: { type: array, items: { type: object } }
+  /payment-options:
+    get:
+      operationId: get_payment_options
+      summary: Get payment options
+      description: Returns current payment methods, Q Card interest-free terms, and instalment options.
+      responses:
+        "200":
+          description: Payment options
+          content:
+            application/json:
+              schema: { type: object }
+  /gift-cards:
+    get:
+      operationId: get_gift_card_info
+      summary: Get gift card information
+      description: Returns gift card denominations, purchase options, and terms.
+      responses:
+        "200":
+          description: Gift card info
+          content:
+            application/json:
+              schema: { type: object }
+  /app-info:
+    get:
+      operationId: get_app_info
+      summary: Get Wanderlux app info
+      description: Returns the Wanderlux app features and download links.
+      responses:
+        "200":
+          description: App info
+          content:
+            application/json:
+              schema: { type: object }
+  /insurance-overview:
+    get:
+      operationId: get_insurance_overview
+      summary: Get general travel insurance overview
+      description: Returns general educational content on what travel insurance typically covers.
+      responses:
+        "200":
+          description: Insurance overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overview: { type: string }
+  /travel-advisory:
+    get:
+      operationId: get_travel_advisory
+      summary: Get travel advisory level for a destination
+      description: Returns the New Zealand government travel advisory level for a destination, referencing safetravel.govt.nz.
+      parameters:
+        - { name: destination, in: query, schema: { type: string, example: Japan } }
+      responses:
+        "200":
+          description: Travel advisory
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: advisory_not_found }
+        message: { type: string }
+    Store:
+      type: object
+      properties:
+        store_id: { type: string, example: STORE-CHC-CITY }
+        name: { type: string }
+        city: { type: string, example: Christchurch }
+        suburb: { type: string }
+        address: { type: string }
+        phone: { type: string }
+        hours: { type: string }
+        maps_url: { type: string }

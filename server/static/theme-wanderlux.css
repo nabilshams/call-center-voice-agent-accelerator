@@ -1,0 +1,64 @@
+/*
+ * Theme: Wanderlux
+ * --------------------------------------------------------------------------
+ * Brand palette and design tokens for the travel support experience.
+ * Swap this single file (and the <link> reference) to re-theme every page.
+ * Structural styles live in travel-chat.css / travel-support.css and only
+ * reference the custom properties defined here.
+ */
+
+:root {
+  /* Typography */
+  --font-family: "Helvetica Neue", "Arial", "Segoe UI", sans-serif;
+
+  /* Brand (Wanderlux deep purple) */
+  --brand: #3a1078;
+  --brand-dark: #2a0a57;
+  --brand-soft: #efe9fb;
+  --brand-ring: rgba(58, 16, 120, 0.2);
+  --brand-border: rgba(58, 16, 120, 0.3);
+
+  /* Accent (Wanderlux gold) */
+  --accent: #ffd23f;
+  --accent-dark: #f5b800;
+  --accent-soft: #fff6d6;
+  --accent-ink: #2a0a57;
+
+  /* Surfaces */
+  --bg: #f3f4f6;
+  --card: #ffffff;
+  --card-border: #e5e7eb;
+  --panel-bg: #fafafa;
+  --input-bg: #ffffff;
+  --input-border: rgba(71, 85, 105, 0.28);
+
+  /* Text */
+  --ink: #1a1a1a;
+  --muted: #5a5a5a;
+  --label: #475569;
+  --hint: #64748b;
+  --placeholder: #8a8a8a;
+
+  /* Conversation bubbles */
+  --user-bubble: #ede4fb;
+  --user-bubble-border: var(--brand-border);
+  --agent-bubble: #f6f7f8;
+
+  /* Buttons */
+  --btn-neutral-bg: #f8fafc;
+  --btn-dark-bg: #2a0a57;
+  --btn-dark-hover: #1d063f;
+  --btn-disabled: #cbcbcb;
+  --btn-listening-bg: #fee2e2;
+  --btn-listening-border: #ef4444;
+  --btn-listening-text: #991b1b;
+
+  /* States */
+  --warning: #b3001f;
+
+  /* Effects */
+  --shadow-card: 0 12px 40px rgba(0, 0, 0, 0.12);
+  --shadow-brand: 0 4px 15px rgba(58, 16, 120, 0.25);
+  --radius: 6px;
+  --radius-lg: 0.75rem;
+}

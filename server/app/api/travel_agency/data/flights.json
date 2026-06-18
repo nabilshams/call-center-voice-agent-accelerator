@@ -1,0 +1,172 @@
+{
+  "flights": [
+    {
+      "flight_id": "FL-AKLSYD-001",
+      "airline": "Air New Zealand",
+      "flight_number": "NZ101",
+      "origin": "AKL",
+      "origin_city": "Auckland",
+      "destination": "SYD",
+      "destination_city": "Sydney",
+      "departure_date": "2026-06-19",
+      "departure_time": "07:30",
+      "arrival_time": "09:15",
+      "duration_minutes": 225,
+      "stops": 0,
+      "cabin_class": "economy",
+      "price_nzd": 389.0,
+      "baggage_allowance_kg": 23,
+      "fare_rules": {
+        "changeable": true,
+        "change_fee_nzd": 120.0,
+        "refundable": false,
+        "cancellation_fee_nzd": 250.0
+      },
+      "seats_available": 14
+    },
+    {
+      "flight_id": "FL-AKLSYD-002",
+      "airline": "Qantas",
+      "flight_number": "QF144",
+      "origin": "AKL",
+      "origin_city": "Auckland",
+      "destination": "SYD",
+      "destination_city": "Sydney",
+      "departure_date": "2026-06-19",
+      "departure_time": "10:45",
+      "arrival_time": "12:30",
+      "duration_minutes": 225,
+      "stops": 0,
+      "cabin_class": "economy",
+      "price_nzd": 412.0,
+      "baggage_allowance_kg": 23,
+      "fare_rules": {
+        "changeable": true,
+        "change_fee_nzd": 99.0,
+        "refundable": false,
+        "cancellation_fee_nzd": 200.0
+      },
+      "seats_available": 8
+    },
+    {
+      "flight_id": "FL-AKLSYD-003",
+      "airline": "Jetstar",
+      "flight_number": "JQ202",
+      "origin": "AKL",
+      "origin_city": "Auckland",
+      "destination": "SYD",
+      "destination_city": "Sydney",
+      "departure_date": "2026-06-19",
+      "departure_time": "14:20",
+      "arrival_time": "16:05",
+      "duration_minutes": 225,
+      "stops": 0,
+      "cabin_class": "economy",
+      "price_nzd": 298.0,
+      "baggage_allowance_kg": 20,
+      "fare_rules": {
+        "changeable": false,
+        "change_fee_nzd": 0.0,
+        "refundable": false,
+        "cancellation_fee_nzd": 0.0
+      },
+      "seats_available": 22
+    },
+    {
+      "flight_id": "FL-AKLNRT-001",
+      "airline": "Air New Zealand",
+      "flight_number": "NZ99",
+      "origin": "AKL",
+      "origin_city": "Auckland",
+      "destination": "NRT",
+      "destination_city": "Tokyo",
+      "departure_date": "2026-09-10",
+      "departure_time": "09:50",
+      "arrival_time": "17:25",
+      "duration_minutes": 695,
+      "stops": 0,
+      "cabin_class": "economy",
+      "price_nzd": 1289.0,
+      "baggage_allowance_kg": 23,
+      "fare_rules": {
+        "changeable": true,
+        "change_fee_nzd": 150.0,
+        "refundable": false,
+        "cancellation_fee_nzd": 350.0
+      },
+      "seats_available": 11
+    },
+    {
+      "flight_id": "FL-AKLNRT-002",
+      "airline": "Qantas",
+      "flight_number": "QF801",
+      "origin": "AKL",
+      "origin_city": "Auckland",
+      "destination": "NRT",
+      "destination_city": "Tokyo",
+      "departure_date": "2026-09-10",
+      "departure_time": "06:15",
+      "arrival_time": "16:40",
+      "duration_minutes": 865,
+      "stops": 1,
+      "cabin_class": "economy",
+      "price_nzd": 1145.0,
+      "baggage_allowance_kg": 30,
+      "fare_rules": {
+        "changeable": true,
+        "change_fee_nzd": 180.0,
+        "refundable": false,
+        "cancellation_fee_nzd": 400.0
+      },
+      "seats_available": 6
+    },
+    {
+      "flight_id": "FL-WLGBNE-001",
+      "airline": "Air New Zealand",
+      "flight_number": "NZ247",
+      "origin": "WLG",
+      "origin_city": "Wellington",
+      "destination": "BNE",
+      "destination_city": "Brisbane",
+      "departure_date": "2026-07-12",
+      "departure_time": "08:05",
+      "arrival_time": "09:35",
+      "duration_minutes": 270,
+      "stops": 0,
+      "cabin_class": "economy",
+      "price_nzd": 421.0,
+      "baggage_allowance_kg": 23,
+      "fare_rules": {
+        "changeable": true,
+        "change_fee_nzd": 120.0,
+        "refundable": false,
+        "cancellation_fee_nzd": 250.0
+      },
+      "seats_available": 18
+    },
+    {
+      "flight_id": "FL-AKLDPS-001",
+      "airline": "Emirates",
+      "flight_number": "EK449",
+      "origin": "AKL",
+      "origin_city": "Auckland",
+      "destination": "DPS",
+      "destination_city": "Bali",
+      "departure_date": "2026-08-03",
+      "departure_time": "22:10",
+      "arrival_time": "08:55",
+      "duration_minutes": 645,
+      "stops": 1,
+      "cabin_class": "economy",
+      "price_nzd": 1099.0,
+      "baggage_allowance_kg": 30,
+      "fare_rules": {
+        "changeable": true,
+        "change_fee_nzd": 160.0,
+        "refundable": false,
+        "cancellation_fee_nzd": 380.0
+      },
+      "seats_available": 9
+    }
+  ]
+}

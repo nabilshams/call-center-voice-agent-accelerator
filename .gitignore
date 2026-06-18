@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Runtime-generated demo script overrides (seed file is committed)
+server/app/data/travel_agency_demo_script.runtime.json
+
 # C extensions
 *.so
 

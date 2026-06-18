@@ -21,6 +21,7 @@ AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID = os.getenv("AZURE_USER_ASSIGNED_IDENTITY
 # Folder prefixes within the transcripts container
 CLINICIAN_NOTES_FOLDER = "clinician-notes"
 CYBERSECURITY_AGENT_FOLDER = "cybersecurity-support-agent"
+RECAP_FOLDER = "recap"
 
 
 class TranscriptionStorage:
@@ -40,10 +41,14 @@ class TranscriptionStorage:
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
         self.messages: list[dict] = []
+        # URL of the most recently saved blob (set by save())
+        self.last_saved_url: Optional[str] = None
         
         # Determine storage folder prefix
         if storage_type == "clinician_notes":
             self.folder_prefix = CLINICIAN_NOTES_FOLDER
+        elif storage_type == "recap":
+            self.folder_prefix = RECAP_FOLDER
         else:
             self.folder_prefix = CYBERSECURITY_AGENT_FOLDER
         
@@ -130,6 +135,21 @@ class TranscriptionStorage:
             })
             logger.info(f"[TranscriptionStorage] Added agent message: {text[:50]}...")
 
+    def add_speaker_message(self, speaker: str, text: str):
+        """Add a diarized speaker message to the transcription.
+
+        Used by real-time diarization (ConversationTranscriber) where each
+        utterance is attributed to a speaker label like "Speaker 1".
+        """
+        if text and text.strip():
+            role = speaker.strip() if speaker and speaker.strip() else "Unknown"
+            self.messages.append({
+                "role": role,
+                "text": text.strip(),
+                "timestamp": datetime.now().isoformat()
+            })
+            logger.info(f"[TranscriptionStorage] Added [{role}] message: {text[:50]}...")
+
     def end_conversation(self):
         """Mark the end of the conversation and save the transcription."""
         self.end_time = datetime.now()
@@ -172,7 +192,11 @@ class TranscriptionStorage:
         if not self._blob_service_client:
             logger.warning("[TranscriptionStorage] Blob client not initialized, skipping save")
             return None
-        
+
+        if not self.messages:
+            logger.info("[TranscriptionStorage] No messages captured, skipping save")
+            return None
+
         try:
             # Build transcription data
             transcription_data = {
@@ -180,10 +204,11 @@ class TranscriptionStorage:
                 "ConversationId": self.conversation_id,
                 "StartTime": self._format_datetime(self.start_time),
                 "EndTime": self._format_datetime(self.end_time),
+                "Messages": self.messages,
                 "Content": self._format_content()
             }
-            
-            # Generate blob name with folder prefix
+
+            # Generate blob name with date and time prefix in filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             blob_name = f"{self.folder_prefix}/transcription_{timestamp}_{self.conversation_id[:8]}.json"
             
@@ -201,6 +226,7 @@ class TranscriptionStorage:
             )
             
             blob_url = blob_client.url
+            self.last_saved_url = blob_url
             logger.info(f"[TranscriptionStorage] Transcription saved to: {blob_url}")
             return blob_url
             

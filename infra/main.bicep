@@ -22,6 +22,15 @@ param modelName string = ' gpt-4o-mini'
 @description('Id of the user or app to assign application roles. If ommited will be generated from the user assigned identity.')
 param principalId string = ''
 
+@description('Travel orchestrator mode injected into the container: maf-local | foundry | maf | local')
+param travelOrchestratorMode string = 'maf-local'
+
+@description('AI Foundry project name used to build the MAF project endpoint (e.g. TravelAgency)')
+param mafProjectName string = 'TravelAgency'
+
+@description('Model name for native MAF agents')
+param mafModel string = 'gpt-4o-mini'
+
 var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)
 var tags = {'azd-env-name': environmentName }
 var rgName = 'rg-${environmentName}-${uniqueSuffix}'
@@ -40,6 +49,18 @@ module appIdentity './modules/identity.bicep' = {
     location: location
     environmentName: environmentName
     uniqueSuffix: uniqueSuffix
+  }
+}
+
+// [ Virtual Network + private DNS for storage private endpoint ]
+module network './modules/network.bicep' = {
+  name: 'network'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    tags: tags
   }
 }
 
@@ -103,8 +124,10 @@ module storage 'modules/storage.bicep' = {
     tags: tags
     identityPrincipalId: appIdentity.outputs.principalId
     deployerPrincipalId: principalId
+    privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
+    blobPrivateDnsZoneId: network.outputs.blobPrivateDnsZoneId
   }
-  dependsOn: [ appIdentity ]
+  dependsOn: [ appIdentity, network ]
 }
 
 var keyVaultName = toLower(replace('kv-${environmentName}-${uniqueSuffix}', '_', '-'))
@@ -151,12 +174,18 @@ module containerapp 'modules/containerapp.bicep' = {
     acsConnectionStringSecretUri: keyvault.outputs.acsConnectionStringUri
     logAnalyticsWorkspaceName: logAnalyticsName
     imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-    speechRegion: location
+    speechRegion: aiServices.outputs.aiServicesLocation
+    chatDeploymentName: aiServices.outputs.chatDeploymentName
     storageAccountName: storage.outputs.storageAccountName
     storageBlobEndpoint: storage.outputs.primaryBlobEndpoint
     transcriptsContainerName: storage.outputs.transcriptsContainerName
+    infrastructureSubnetId: network.outputs.acaSubnetId
+    travelOrchestratorMode: travelOrchestratorMode
+    mafNativeSdkEnabled: 'true'
+    mafProjectEndpoint: '${aiServices.outputs.aiFoundryEndpoint}/api/projects/${mafProjectName}'
+    mafModel: mafModel
   }
-  dependsOn: [keyvault, RoleAssignments, storage]
+  dependsOn: [keyvault, RoleAssignments, storage, network]
 }
 
 

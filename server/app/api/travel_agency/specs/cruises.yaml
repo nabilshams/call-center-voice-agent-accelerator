@@ -1,0 +1,144 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - Cruises API
+  version: 1.0.0
+  description: >-
+    Search cruises, get cruise and cruise-line details, and place provisional
+    cabin holds.
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files. Holds live only for the lifetime of the server process.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/cruises
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/cruises
+    description: Local development
+paths:
+  /search:
+    get:
+      operationId: search_cruises
+      summary: Search cruises
+      description: >-
+        Search cruise sailings by departure port, region, and duration (nights).
+        All filters optional. Returns cruises with itineraries, cabin pricing
+        (inside/balcony/suite), inclusions, and availability.
+      parameters:
+        - { name: departure_port, in: query, schema: { type: string, example: Auckland }, description: "e.g. Auckland, Sydney" }
+        - { name: region, in: query, schema: { type: string, example: Pacific }, description: "e.g. Pacific, European Rivers" }
+        - { name: duration_min, in: query, schema: { type: integer, example: 7 }, description: "Minimum nights" }
+        - { name: duration_max, in: query, schema: { type: integer, example: 14 }, description: "Maximum nights" }
+      responses:
+        "200":
+          description: Matching cruises
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  cruises:
+                    type: array
+                    items: { $ref: "#/components/schemas/Cruise" }
+  /lines/{cruise_line}:
+    get:
+      operationId: get_cruise_line_info
+      summary: Get cruise line overview and ships
+      description: Returns a cruise line's overview, signature features, ships, and who it best suits. Use to educate first-time cruisers comparing lines.
+      parameters:
+        - { name: cruise_line, in: path, required: true, schema: { type: string, example: "Princess Cruises" } }
+      responses:
+        "200":
+          description: Cruise line info
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CruiseLine" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{cruise_id}:
+    get:
+      operationId: get_cruise_itinerary
+      summary: Get full cruise itinerary and pricing
+      description: Retrieve the complete record for a single cruise, including the port-by-port itinerary, cabin pricing, inclusions, and availability.
+      parameters:
+        - { name: cruise_id, in: path, required: true, schema: { type: string, example: CR-PRINCESS-PAC14 } }
+      responses:
+        "200":
+          description: Cruise details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cruise" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{cruise_id}/hold:
+    post:
+      operationId: book_cruise_hold
+      summary: Place a provisional cabin hold
+      description: >-
+        Place a time-limited provisional hold on a cabin category for a cruise
+        (default 48 hours) before a consultant finalises the booking. Returns a
+        hold reference and expiry. DEMO ONLY.
+      parameters:
+        - { name: cruise_id, in: path, required: true, schema: { type: string, example: CR-PRINCESS-PAC14 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CruiseHoldRequest" }
+      responses:
+        "201":
+          description: Hold placed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  held: { type: boolean }
+                  hold_reference: { type: string, example: HOLD-A1B2C3D4 }
+                  cruise_id: { type: string }
+                  cabin_category: { type: string }
+                  passenger_count: { type: integer }
+                  price_per_person_nzd: { type: number, format: float }
+                  hold_expires_at: { type: string, format: date-time }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: cruise_not_found }
+        message: { type: string }
+    Cruise:
+      type: object
+      properties:
+        cruise_id: { type: string, example: CR-PRINCESS-PAC14 }
+        cruise_line: { type: string, example: "Princess Cruises" }
+        ship_name: { type: string, example: "Crown Princess" }
+        name: { type: string }
+        departure_port: { type: string, example: Auckland }
+        region: { type: string, example: Pacific }
+        duration_nights: { type: integer, example: 14 }
+        departure_date: { type: string, format: date }
+        itinerary: { type: array, items: { type: object } }
+        cabin_pricing: { type: object }
+        inclusions: { type: array, items: { type: string } }
+        extras: { type: array, items: { type: string } }
+        availability: { type: object }
+    CruiseLine:
+      type: object
+      properties:
+        cruise_line: { type: string, example: "Princess Cruises" }
+        overview: { type: string }
+        signature_features: { type: array, items: { type: string } }
+        ships: { type: array, items: { type: string } }
+        best_for: { type: string }
+    CruiseHoldRequest:
+      type: object
+      properties:
+        cabin_category: { type: string, enum: [inside, balcony, suite], example: balcony }
+        passenger_count: { type: integer, example: 2 }
+        hold_hours: { type: integer, example: 48 }

@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Travel Support Chat Assistant</title>
+  <!-- Theme (colors/branding) — swap this file to re-theme the page -->
+  <link rel="stylesheet" href="/static/theme-wanderlux.css" />
+  <!-- Structure (layout/components) — theme-agnostic -->
+  <link rel="stylesheet" href="/static/travel-chat.css" />
+</head>
+<body>
+  <main class="shell">
+    <aside class="panel">
+      <span class="badge">Travel Support</span>
+      <h1>Chat with the Travel Agent</h1>
+      <p>
+        Ask about flights, hotels, cruises, tour ideas, deals, or booking support.
+        You can type or use your microphone if supported by your browser.
+      </p>
+
+      <section class="orchestrator-toggle" aria-label="Orchestration strategy">
+        <span class="toggle-label active" id="labelSingle">Intent Orchestrator</span>
+        <label class="toggle-switch" title="Switch orchestration strategy">
+          <input type="checkbox" id="orchestratorToggle" aria-label="Toggle multi-intent orchestration" />
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label" id="labelMulti">Multi-Intent Orchestrator</span>
+      </section>
+      <p class="toggle-hint" id="toggleHint">
+        Routes your request to a single best-fit agent.
+      </p>
+
+      <section class="quick-prompts" aria-label="Quick prompts">
+        <button type="button" data-prompt="Find me a family-friendly cruise in Alaska for July under a mid-range budget.">Cruise recommendations</button>
+        <button type="button" data-prompt="I need round-trip flights from Seattle to Tokyo in October for two travelers.">Flight planning</button>
+        <button type="button" data-prompt="Suggest a 4-night hotel stay in Rome near city center with breakfast included.">Hotel shortlist</button>
+        <button type="button" data-prompt="Track deal alerts for New York to London in early September.">Deal alerts</button>
+      </section>
+
+      <section class="meta" id="routingMeta" aria-live="polite">
+        No routing data yet. Send your first request to see selected agents and route.
+      </section>
+    </aside>
+
+    <section class="chat" aria-label="Travel chat window">
+      <header class="chat-header">
+        <h2 class="chat-header-title">Travel Conversation</h2>
+        <div class="chat-actions">
+          <a href="/travel-support">Open Voice Interface</a>
+          <button type="button" id="demoBtn">Travel Agency Demo Script</button>
+          <button type="button" id="clearBtn">Clear</button>
+        </div>
+      </header>
+
+      <div id="messages" role="log" aria-live="polite" aria-label="Conversation messages"></div>
+      <div class="typing" id="typingStatus"></div>
+      <div class="notice" id="noticeText"></div>
+
+      <form class="composer" id="chatForm">
+        <textarea
+          id="messageInput"
+          placeholder="Type your travel request..."
+          aria-label="Type your travel request"
+        ></textarea>
+        <button type="button" id="voiceBtn">Voice Input</button>
+        <button type="submit" id="sendBtn">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <section class="demo-panel" id="demoPanel" aria-label="Demo script" hidden>
+    <header class="demo-panel-header" id="demoPanelHeader">
+      <h2 class="demo-panel-title">Travel Agency Demo Script</h2>
+      <div class="demo-panel-tools">
+        <button type="button" class="demo-tool" id="demoEditBtn" title="Edit script">Edit</button>
+        <button type="button" class="demo-close" id="demoCloseBtn" aria-label="Close demo script">&times;</button>
+      </div>
+    </header>
+    <p class="demo-intro">
+      Drag this window anywhere. Use <strong>Use</strong> to drop a line into the chat,
+      or <strong>Copy</strong> to paste it yourself. Switch to <strong>Edit</strong> to
+      add, change, or remove items, then <strong>Save</strong>.
+    </p>
+
+    <div class="demo-body" id="demoBody"></div>
+
+    <footer class="demo-panel-footer">
+      <span class="demo-status" id="demoStatus"></span>
+      <div class="demo-footer-actions">
+        <button type="button" class="demo-secondary" id="demoAddSectionBtn" hidden>Add section</button>
+        <button type="button" class="demo-secondary" id="demoResetBtn">Reset</button>
+        <button type="button" class="demo-primary" id="demoSaveBtn" hidden>Save</button>
+        <button type="button" class="demo-primary" id="demoCopyAllBtn">Copy all</button>
+      </div>
+    </footer>
+  </section>
+
+  <script>
+    const messagesEl = document.getElementById("messages");
+    const chatForm = document.getElementById("chatForm");
+    const inputEl = document.getElementById("messageInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const typingStatus = document.getElementById("typingStatus");
+    const routingMeta = document.getElementById("routingMeta");
+    const noticeText = document.getElementById("noticeText");
+    const voiceBtn = document.getElementById("voiceBtn");
+    const orchestratorToggle = document.getElementById("orchestratorToggle");
+    const labelSingle = document.getElementById("labelSingle");
+    const labelMulti = document.getElementById("labelMulti");
+    const toggleHint = document.getElementById("toggleHint");
+
+    let conversationTurns = [];
+    let activeRecognition = null;
+
+    function currentStrategy() {
+      return orchestratorToggle && orchestratorToggle.checked ? "multi" : "single";
+    }
+
+    function addMessage(type, text) {
+      const card = document.createElement("article");
+      card.className = `message ${type}`;
+
+      const label = document.createElement("div");
+      label.className = "message-label";
+      label.textContent = type === "user" ? "You" : "Travel Agent";
+
+      const body = document.createElement("div");
+      body.className = "message-text";
+      body.textContent = text;
+
+      card.appendChild(label);
+      card.appendChild(body);
+      messagesEl.appendChild(card);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function buildAssistantText(data) {
+      const spoken = (data.spoken_reply || "").trim();
+      const clarification = (data.clarification_question || "").trim();
+
+      if (spoken && clarification) {
+        return `${spoken}\n\n${clarification}`;
+      }
+      return spoken || clarification || "I can help with travel planning. Tell me what you need.";
+    }
+
+    function prettyAgentName(name) {
+      if (!name) return "Specialist Agent";
+      // Insert spaces before capitals: "FlightBookingAgent" -> "Flight Booking Agent"
+      return String(name).replace(/([a-z])([A-Z])/g, "$1 $2");
+    }
+
+    function addSpecialistActivity(outputs) {
+      if (!Array.isArray(outputs) || outputs.length === 0) return;
+
+      const card = document.createElement("article");
+      card.className = "message agent specialist-activity";
+
+      const label = document.createElement("div");
+      label.className = "message-label";
+      label.textContent =
+        outputs.length > 1
+          ? `Specialist Agents (${outputs.length})`
+          : "Specialist Agent";
+      card.appendChild(label);
+
+      outputs.forEach((output) => {
+        const item = document.createElement("div");
+        item.className = "specialist-item";
+
+        const head = document.createElement("div");
+        head.className = "specialist-head";
+        const name = document.createElement("span");
+        name.className = "specialist-name";
+        name.textContent = prettyAgentName(output.agent);
+        head.appendChild(name);
+        if (output.confidence !== undefined && output.confidence !== null) {
+          const conf = document.createElement("span");
+          conf.className = "specialist-confidence";
+          conf.textContent = `confidence ${output.confidence}`;
+          head.appendChild(conf);
+        }
+        item.appendChild(head);
+
+        const request = (output.request || "").trim();
+        if (request) {
+          const reqRow = document.createElement("div");
+          reqRow.className = "specialist-row";
+          reqRow.innerHTML = `<span class="specialist-tag request">Request</span>`;
+          const reqText = document.createElement("span");
+          reqText.className = "specialist-text";
+          reqText.textContent = request;
+          reqRow.appendChild(reqText);
+          item.appendChild(reqRow);
+        }
+
+        const reply = (output.summary || "").trim();
+        if (reply) {
+          const repRow = document.createElement("div");
+          repRow.className = "specialist-row";
+          repRow.innerHTML = `<span class="specialist-tag reply">Reply</span>`;
+          const repText = document.createElement("span");
+          repText.className = "specialist-text";
+          repText.textContent = reply;
+          repRow.appendChild(repText);
+          item.appendChild(repRow);
+        }
+
+        if (Array.isArray(output.missing_fields) && output.missing_fields.length) {
+          const missRow = document.createElement("div");
+          missRow.className = "specialist-row";
+          missRow.innerHTML = `<span class="specialist-tag missing">Needs</span>`;
+          const missText = document.createElement("span");
+          missText.className = "specialist-text";
+          missText.textContent = output.missing_fields
+            .map((f) => String(f).replace(/_/g, " "))
+            .join(", ");
+          missRow.appendChild(missText);
+          item.appendChild(missRow);
+        }
+
+        card.appendChild(item);
+      });
+
+      messagesEl.appendChild(card);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function updateRoutingMeta(data) {
+      const mode = data.orchestrator_mode || "unknown";
+      const strategy = data.orchestration_strategy || (currentStrategy() === "multi" ? "multi-intent" : "single-intent");
+      const runtime = data.maf_runtime || "n/a";
+      const initError = data.maf_init_error || "";
+      const route = data.workflow_route || "n/a";
+      const confidence = data.confidence !== undefined ? data.confidence : "n/a";
+      const nextStep = data.next_step || "n/a";
+      const selectedAgents = Array.isArray(data.selected_agents) && data.selected_agents.length
+        ? data.selected_agents.join(", ")
+        : "none";
+
+      routingMeta.innerHTML =
+        `<strong>Mode:</strong> ${mode}<br>` +
+        `<strong>Strategy:</strong> ${strategy}<br>` +
+        `<strong>Runtime:</strong> ${runtime}<br>` +
+        (initError ? `<strong>Init Error:</strong> ${initError}<br>` : "") +
+        `<strong>Route:</strong> ${route}<br>` +
+        `<strong>Agents:</strong> ${selectedAgents}<br>` +
+        `<strong>Confidence:</strong> ${confidence}<br>` +
+        `<strong>Next:</strong> ${nextStep}`;
+    }
+
+    async function sendMessage(message) {
+      const trimmed = (message || "").trim();
+      if (!trimmed) return;
+
+      noticeText.textContent = "";
+      addMessage("user", trimmed);
+      conversationTurns.push({ role: "user", text: trimmed });
+
+      sendBtn.disabled = true;
+      typingStatus.textContent = "Travel agent is thinking...";
+
+      try {
+        const response = await fetch("/travel/orchestrate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: trimmed,
+            strategy: currentStrategy(),
+            context: {
+              channel: "chat-web",
+              source: "travel-chat-ui",
+              timestamp: new Date().toISOString(),
+              orchestration: currentStrategy(),
+              history: conversationTurns.slice(-8),
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const details = await response.text();
+          throw new Error(`Request failed (${response.status}): ${details}`);
+        }
+
+        const data = await response.json();
+        const assistantText = buildAssistantText(data);
+        addMessage("agent", assistantText);
+        conversationTurns.push({ role: "assistant", text: assistantText });
+        addSpecialistActivity(data.specialist_outputs);
+        updateRoutingMeta(data);
+      } catch (error) {
+        console.error("travel chat orchestration error", error);
+        noticeText.textContent = "Could not reach the travel orchestrator. Please try again.";
+      } finally {
+        sendBtn.disabled = false;
+        typingStatus.textContent = "";
+        inputEl.focus();
+      }
+    }
+
+    function clearConversation() {
+      messagesEl.innerHTML = "";
+      conversationTurns = [];
+      noticeText.textContent = "";
+      typingStatus.textContent = "";
+      routingMeta.textContent = "No routing data yet. Send your first request to see selected agents and route.";
+      inputEl.value = "";
+      inputEl.focus();
+    }
+
+    function setupQuickPrompts() {
+      document.querySelectorAll("[data-prompt]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const prompt = button.getAttribute("data-prompt") || "";
+          inputEl.value = prompt;
+          inputEl.focus();
+          inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+        });
+      });
+    }
+
+    function setupSpeechInput() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        voiceBtn.disabled = true;
+        voiceBtn.textContent = "Voice Unavailable";
+        return;
+      }
+
+      voiceBtn.addEventListener("click", () => {
+        if (activeRecognition) {
+          activeRecognition.stop();
+          return;
+        }
+
+        const recognition = new SpeechRecognition();
+        activeRecognition = recognition;
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        voiceBtn.classList.add("listening");
+        voiceBtn.textContent = "Listening...";
+        noticeText.textContent = "Say your travel request, then pause.";
+
+        recognition.onresult = (event) => {
+          const transcript = event.results?.[0]?.[0]?.transcript || "";
+          if (transcript.trim()) {
+            inputEl.value = transcript.trim();
+          }
+        };
+
+        recognition.onerror = () => {
+          noticeText.textContent = "Voice input failed. You can still type your request.";
+        };
+
+        recognition.onend = () => {
+          activeRecognition = null;
+          voiceBtn.classList.remove("listening");
+          voiceBtn.textContent = "Voice Input";
+        };
+
+        recognition.start();
+      });
+    }
+
+    chatForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = inputEl.value;
+      inputEl.value = "";
+      await sendMessage(message);
+    });
+
+    inputEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        chatForm.requestSubmit();
+      }
+    });
+
+    clearBtn.addEventListener("click", clearConversation);
+
+    // ---- Demo script (non-blocking, editable, server-persisted) ----
+    const demoBtn = document.getElementById("demoBtn");
+    const demoPanel = document.getElementById("demoPanel");
+    const demoPanelHeader = document.getElementById("demoPanelHeader");
+    const demoCloseBtn = document.getElementById("demoCloseBtn");
+    const demoEditBtn = document.getElementById("demoEditBtn");
+    const demoBody = document.getElementById("demoBody");
+    const demoStatus = document.getElementById("demoStatus");
+    const demoSaveBtn = document.getElementById("demoSaveBtn");
+    const demoResetBtn = document.getElementById("demoResetBtn");
+    const demoCopyAllBtn = document.getElementById("demoCopyAllBtn");
+    const demoAddSectionBtn = document.getElementById("demoAddSectionBtn");
+
+    let demoData = { sections: [] };
+    let demoEditMode = false;
+    let demoLoaded = false;
+
+    function setDemoStatus(text, isError) {
+      demoStatus.textContent = text || "";
+      demoStatus.classList.toggle("error", Boolean(isError));
+    }
+
+    async function copyText(text, btn) {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (btn) {
+          const original = btn.textContent;
+          btn.textContent = "Copied";
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove("copied");
+          }, 1400);
+        }
+      } catch (err) {
+        console.error("clipboard copy failed", err);
+        setDemoStatus("Copy failed — select the text manually.", true);
+      }
+    }
+
+    function fullScriptText() {
+      return demoData.sections
+        .map((section) => {
+          const header = section.note ? `${section.title}\n${section.note}` : section.title;
+          const lines = (section.lines || []).map((line, i) => `${i + 1}. ${line}`).join("\n");
+          return [header, lines].filter(Boolean).join("\n");
+        })
+        .join("\n\n");
+    }
+
+    async function loadDemoScript() {
+      try {
+        const response = await fetch("/travel/demo-script");
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        const data = await response.json();
+        demoData = data && Array.isArray(data.sections) ? data : { sections: [] };
+        demoLoaded = true;
+      } catch (err) {
+        console.error("failed to load demo script", err);
+        setDemoStatus("Could not load saved script.", true);
+        demoData = { sections: [] };
+      }
+      renderDemo();
+    }
+
+    async function saveDemoScript() {
+      try {
+        setDemoStatus("Saving...");
+        const response = await fetch("/travel/demo-script", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(demoData),
+        });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        demoData = await response.json();
+        setDemoStatus("Saved.");
+        setDemoEditMode(false);
+        renderDemo();
+      } catch (err) {
+        console.error("failed to save demo script", err);
+        setDemoStatus("Save failed. Please try again.", true);
+      }
+    }
+
+    async function resetDemoScript() {
+      try {
+        setDemoStatus("Restoring default...");
+        const response = await fetch("/travel/demo-script/reset", { method: "POST" });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        demoData = await response.json();
+        setDemoStatus("Default script restored.");
+        setDemoEditMode(false);
+        renderDemo();
+      } catch (err) {
+        console.error("failed to reset demo script", err);
+        setDemoStatus("Reset failed. Please try again.", true);
+      }
+    }
+
+    function setDemoEditMode(on) {
+      demoEditMode = on;
+      demoEditBtn.textContent = on ? "Done" : "Edit";
+      demoEditBtn.classList.toggle("active", on);
+      demoSaveBtn.hidden = !on;
+      demoAddSectionBtn.hidden = !on;
+      demoPanel.classList.toggle("editing", on);
+    }
+
+    function renderDemo() {
+      demoBody.innerHTML = "";
+
+      if (!demoData.sections.length) {
+        const empty = document.createElement("p");
+        empty.className = "demo-empty";
+        empty.textContent = demoEditMode
+          ? "No items yet. Use \"Add section\" to create one."
+          : "No demo items. Switch to Edit to add some.";
+        demoBody.appendChild(empty);
+        return;
+      }
+
+      demoData.sections.forEach((section, sIdx) => {
+        const block = document.createElement("section");
+        block.className = "demo-section";
+
+        if (demoEditMode) {
+          block.appendChild(buildEditableSection(section, sIdx));
+        } else {
+          block.appendChild(buildReadonlySection(section));
+        }
+
+        demoBody.appendChild(block);
+      });
+    }
+
+    function buildReadonlySection(section) {
+      const frag = document.createDocumentFragment();
+
+      const heading = document.createElement("h3");
+      heading.className = "demo-section-title";
+      heading.textContent = section.title || "(untitled)";
+      frag.appendChild(heading);
+
+      if (section.note) {
+        const note = document.createElement("p");
+        note.className = "demo-section-note";
+        note.textContent = section.note;
+        frag.appendChild(note);
+      }
+
+      (section.lines || []).forEach((line, index) => {
+        const row = document.createElement("div");
+        row.className = "demo-line";
+
+        const text = document.createElement("span");
+        text.className = "demo-line-text";
+        text.textContent = `${index + 1}. ${line}`;
+
+        const actions = document.createElement("div");
+        actions.className = "demo-line-actions";
+
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "demo-line-copy";
+        copyBtn.textContent = "Copy";
+        copyBtn.addEventListener("click", () => copyText(line, copyBtn));
+
+        const useBtn = document.createElement("button");
+        useBtn.type = "button";
+        useBtn.className = "demo-line-use";
+        useBtn.textContent = "Use";
+        useBtn.addEventListener("click", () => {
+          inputEl.value = line;
+          inputEl.focus();
+          inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+        });
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(useBtn);
+        row.appendChild(text);
+        row.appendChild(actions);
+        frag.appendChild(row);
+      });
+
+      return frag;
+    }
+
+    function buildEditableSection(section, sIdx) {
+      const frag = document.createDocumentFragment();
+
+      const headRow = document.createElement("div");
+      headRow.className = "demo-edit-head";
+
+      const titleInput = document.createElement("input");
+      titleInput.type = "text";
+      titleInput.className = "demo-edit-title";
+      titleInput.placeholder = "Section title";
+      titleInput.value = section.title || "";
+      titleInput.addEventListener("input", () => {
+        demoData.sections[sIdx].title = titleInput.value;
+      });
+
+      const delSectionBtn = document.createElement("button");
+      delSectionBtn.type = "button";
+      delSectionBtn.className = "demo-del-section";
+      delSectionBtn.title = "Delete section";
+      delSectionBtn.textContent = "Delete";
+      delSectionBtn.addEventListener("click", () => {
+        demoData.sections.splice(sIdx, 1);
+        renderDemo();
+      });
+
+      headRow.appendChild(titleInput);
+      headRow.appendChild(delSectionBtn);
+      frag.appendChild(headRow);
+
+      const noteInput = document.createElement("input");
+      noteInput.type = "text";
+      noteInput.className = "demo-edit-note";
+      noteInput.placeholder = "Optional note / instructions";
+      noteInput.value = section.note || "";
+      noteInput.addEventListener("input", () => {
+        demoData.sections[sIdx].note = noteInput.value;
+      });
+      frag.appendChild(noteInput);
+
+      (section.lines || []).forEach((line, lIdx) => {
+        const lineRow = document.createElement("div");
+        lineRow.className = "demo-edit-line";
+
+        const lineInput = document.createElement("input");
+        lineInput.type = "text";
+        lineInput.className = "demo-edit-line-input";
+        lineInput.placeholder = "Prompt text";
+        lineInput.value = line;
+        lineInput.addEventListener("input", () => {
+          demoData.sections[sIdx].lines[lIdx] = lineInput.value;
+        });
+
+        const delLineBtn = document.createElement("button");
+        delLineBtn.type = "button";
+        delLineBtn.className = "demo-del-line";
+        delLineBtn.title = "Delete line";
+        delLineBtn.textContent = "×";
+        delLineBtn.addEventListener("click", () => {
+          demoData.sections[sIdx].lines.splice(lIdx, 1);
+          renderDemo();
+        });
+
+        lineRow.appendChild(lineInput);
+        lineRow.appendChild(delLineBtn);
+        frag.appendChild(lineRow);
+      });
+
+      const addLineBtn = document.createElement("button");
+      addLineBtn.type = "button";
+      addLineBtn.className = "demo-add-line";
+      addLineBtn.textContent = "+ Add line";
+      addLineBtn.addEventListener("click", () => {
+        if (!Array.isArray(demoData.sections[sIdx].lines)) {
+          demoData.sections[sIdx].lines = [];
+        }
+        demoData.sections[sIdx].lines.push("");
+        renderDemo();
+      });
+      frag.appendChild(addLineBtn);
+
+      return frag;
+    }
+
+    function openDemo() {
+      demoPanel.hidden = false;
+      if (!demoLoaded) {
+        loadDemoScript();
+      } else {
+        renderDemo();
+      }
+    }
+
+    function closeDemo() {
+      demoPanel.hidden = true;
+    }
+
+    // Drag handling — non-blocking floating window.
+    let dragState = null;
+    function onDragStart(event) {
+      if (event.target.closest("button")) return;
+      const rect = demoPanel.getBoundingClientRect();
+      demoPanel.style.left = `${rect.left}px`;
+      demoPanel.style.top = `${rect.top}px`;
+      demoPanel.style.right = "auto";
+      demoPanel.style.bottom = "auto";
+      demoPanel.classList.add("dragging");
+      dragState = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+      window.addEventListener("pointermove", onDragMove);
+      window.addEventListener("pointerup", onDragEnd);
+    }
+    function onDragMove(event) {
+      if (!dragState) return;
+      const maxX = window.innerWidth - 60;
+      const maxY = window.innerHeight - 40;
+      const x = Math.min(Math.max(0, event.clientX - dragState.dx), maxX);
+      const y = Math.min(Math.max(0, event.clientY - dragState.dy), maxY);
+      demoPanel.style.left = `${x}px`;
+      demoPanel.style.top = `${y}px`;
+    }
+    function onDragEnd() {
+      dragState = null;
+      demoPanel.classList.remove("dragging");
+      window.removeEventListener("pointermove", onDragMove);
+      window.removeEventListener("pointerup", onDragEnd);
+    }
+
+    if (demoBtn) {
+      demoBtn.addEventListener("click", openDemo);
+      demoCloseBtn.addEventListener("click", closeDemo);
+      demoEditBtn.addEventListener("click", () => {
+        setDemoEditMode(!demoEditMode);
+        renderDemo();
+      });
+      demoSaveBtn.addEventListener("click", saveDemoScript);
+      demoResetBtn.addEventListener("click", resetDemoScript);
+      demoCopyAllBtn.addEventListener("click", () => copyText(fullScriptText(), demoCopyAllBtn));
+      demoAddSectionBtn.addEventListener("click", () => {
+        demoData.sections.push({ title: "New section", note: "", lines: [""] });
+        renderDemo();
+      });
+      demoPanelHeader.addEventListener("pointerdown", onDragStart);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !demoPanel.hidden && !demoEditMode) closeDemo();
+      });
+    }
+
+    if (orchestratorToggle) {
+      orchestratorToggle.addEventListener("change", () => {
+        const multi = orchestratorToggle.checked;
+        labelMulti.classList.toggle("active", multi);
+        labelSingle.classList.toggle("active", !multi);
+        toggleHint.textContent = multi
+          ? "Routes your request to several agents in parallel and merges their replies."
+          : "Routes your request to a single best-fit agent.";
+      });
+    }
+
+    setupQuickPrompts();
+    setupSpeechInput();
+    addMessage("agent", "Hi, I am your travel support assistant. Tell me where you want to go and I will help plan it.");
+  </script>
+</body>
+</html>

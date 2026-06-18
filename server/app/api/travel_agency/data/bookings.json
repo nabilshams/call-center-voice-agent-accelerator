@@ -1,0 +1,97 @@
+{
+  "bookings": [
+    {
+      "booking_reference": "HOT-847291",
+      "last_name": "Siddiqui",
+      "email": "nabil@example.com",
+      "lead_passenger": "Nabil Siddiqui",
+      "passengers": 1,
+      "type": "flight",
+      "itinerary": "Auckland to Tokyo, Air New Zealand",
+      "airline": "Air New Zealand",
+      "flight_number": "NZ99",
+      "cabin_class": "economy",
+      "departure_date": "2026-09-10",
+      "return_date": "2026-09-24",
+      "destination": "Japan",
+      "total_nzd": 1388.0,
+      "insurance": null,
+      "status": "confirmed"
+    },
+    {
+      "booking_reference": "HOT-562104",
+      "last_name": "Thompson",
+      "email": "jane.thompson@example.com",
+      "lead_passenger": "Jane Thompson",
+      "passengers": 2,
+      "type": "package",
+      "itinerary": "Sofitel Fiji Resort & Spa, 7 nights",
+      "airline": "Fiji Airways",
+      "flight_number": "FJ410",
+      "cabin_class": "economy",
+      "departure_date": "2026-08-02",
+      "return_date": "2026-08-09",
+      "destination": "Fiji",
+      "total_nzd": 4698.0,
+      "insurance": "Comprehensive",
+      "status": "confirmed"
+    }
+  ],
+  "visa_requirements": [
+    {
+      "nationality": "New Zealand",
+      "destination_country": "Japan",
+      "visa_required": false,
+      "details": "New Zealand citizens can enter Japan visa-free for up to 90 days for tourism. A passport with at least 6 months validity beyond return and a return ticket are required.",
+      "disclaimer": "Please verify with the official government website or safetravel.govt.nz before travel."
+    },
+    {
+      "nationality": "New Zealand",
+      "destination_country": "Fiji",
+      "visa_required": false,
+      "details": "New Zealand citizens receive a visa-free visitor permit for up to 4 months on arrival in Fiji.",
+      "disclaimer": "Please verify with the official government website or safetravel.govt.nz before travel."
+    },
+    {
+      "nationality": "New Zealand",
+      "destination_country": "Indonesia",
+      "visa_required": true,
+      "details": "New Zealand citizens require a visa on arrival (VOA) for tourism in Indonesia, valid for 30 days and extendable once.",
+      "disclaimer": "Please verify with the official government website or safetravel.govt.nz before travel."
+    }
+  ],
+  "baggage_policies": [
+    { "airline": "Air New Zealand", "cabin_class": "economy", "checked_kg": 23, "carry_on_kg": 7, "carry_on_pieces": 1 },
+    { "airline": "Air New Zealand", "cabin_class": "business", "checked_kg": 46, "carry_on_kg": 14, "carry_on_pieces": 2 },
+    { "airline": "Qantas", "cabin_class": "economy", "checked_kg": 23, "carry_on_kg": 7, "carry_on_pieces": 1 },
+    { "airline": "Jetstar", "cabin_class": "economy", "checked_kg": 20, "carry_on_kg": 7, "carry_on_pieces": 1 },
+    { "airline": "Emirates", "cabin_class": "economy", "checked_kg": 30, "carry_on_kg": 7, "carry_on_pieces": 1 }
+  ],
+  "insurance_tiers": [
+    { "tier": "Essentials", "price_per_person_nzd": 89.0, "covers": ["Trip cancellation", "Lost luggage"] },
+    { "tier": "Comprehensive", "price_per_person_nzd": 149.0, "covers": ["Trip cancellation", "Lost luggage", "Medical evacuation", "Trip disruption"] },
+    { "tier": "Premium", "price_per_person_nzd": 219.0, "covers": ["Trip cancellation", "Lost luggage", "Medical evacuation", "Trip disruption", "Cancel for any reason", "Adventure activities"] }
+  ],
+  "destination_tips": [
+    {
+      "destination": "Japan",
+      "travel_month": "September",
+      "weather": "Warm and humid early September, cooling toward late month; occasional typhoons.",
+      "currency": "Japanese Yen (JPY). Cash is still widely used; carry some.",
+      "safety": "Very safe. Carry your passport as ID is occasionally requested.",
+      "tips": "Get a Suica or Pasmo card for easy city transport."
+    },
+    {
+      "destination": "Fiji",
+      "travel_month": "August",
+      "weather": "Dry season - warm sunny days around 26C, cooler evenings.",
+      "currency": "Fijian Dollar (FJD). Tipping is not expected.",
+      "safety": "Very safe in resort areas; respect village customs and dress.",
+      "tips": "Pack reef-safe sunscreen and a light layer for evenings."
+    }
+  ],
+  "checkin_info": [
+    { "flight_number": "NZ99", "departure_date": "2026-09-10", "checkin_opens_hours_before": 3, "online_checkin_url": "https://www.airnewzealand.co.nz/check-in", "terminal": "International Terminal, Auckland" },
+    { "flight_number": "FJ410", "departure_date": "2026-08-02", "checkin_opens_hours_before": 3, "online_checkin_url": "https://www.fijiairways.com/check-in", "terminal": "International Terminal, Auckland" }
+  ]
+}

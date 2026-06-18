@@ -1,0 +1,184 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - Consultant Match API
+  version: 1.0.0
+  description: >-
+    Find stores, match consultants (ranked by rating), and book appointments or
+    callbacks.
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files. Appointments and callbacks live only for the lifetime of the
+    server process.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/consultants
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/consultants
+    description: Local development
+paths:
+  /search:
+    get:
+      operationId: match_consultant
+      summary: Match a consultant (ranked by rating)
+      description: >-
+        Returns consultants matching a city, travel type (specialisation), and
+        language, ranked by customer rating (highest first). Use to connect a
+        customer with the best-suited consultant.
+      parameters:
+        - { name: city, in: query, schema: { type: string, example: Christchurch } }
+        - { name: travel_type, in: query, schema: { type: string, example: Cruise }, description: "e.g. Cruise, Luxury, Honeymoon, Family, Corporate" }
+        - { name: language, in: query, schema: { type: string, example: English } }
+      responses:
+        "200":
+          description: Ranked consultants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  consultants: { type: array, items: { $ref: "#/components/schemas/Consultant" } }
+  /stores:
+    get:
+      operationId: find_nearest_stores
+      summary: Find nearest stores
+      description: Returns Wanderlux stores matching a city or suburb, with address, phone, hours, and map link.
+      parameters:
+        - { name: city, in: query, schema: { type: string, example: Christchurch }, description: "City or suburb" }
+      responses:
+        "200":
+          description: Matching stores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  stores: { type: array, items: { $ref: "#/components/schemas/Store" } }
+  /stores/{store_id}/hours:
+    get:
+      operationId: get_store_hours
+      summary: Get store opening hours
+      description: Returns the opening hours for a specific store.
+      parameters:
+        - { name: store_id, in: path, required: true, schema: { type: string, example: STORE-CHC-CITY } }
+      responses:
+        "200":
+          description: Store hours
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{consultant_id}:
+    get:
+      operationId: get_consultant_profile
+      summary: Get consultant profile
+      description: Returns a consultant's name, specialisations, languages, rating, and video appointment link.
+      parameters:
+        - { name: consultant_id, in: path, required: true, schema: { type: string, example: CONS-CHC-001 } }
+      responses:
+        "200":
+          description: Consultant profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consultant" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{consultant_id}/appointment:
+    post:
+      operationId: book_consultant_appointment
+      summary: Book a consultant appointment
+      description: Book an in-store, phone, or video appointment with a consultant. Returns an appointment reference and (for video) a booking link. DEMO ONLY.
+      parameters:
+        - { name: consultant_id, in: path, required: true, schema: { type: string, example: CONS-CHC-001 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppointmentRequest" }
+      responses:
+        "201":
+          description: Appointment booked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booked: { type: boolean }
+                  appointment_reference: { type: string, example: APPT-A1B2C3D4 }
+                  consultant_id: { type: string }
+                  consultant_name: { type: string }
+                  appointment_type: { type: string }
+                  video_appointment_url: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{consultant_id}/callback:
+    post:
+      operationId: request_callback
+      summary: Request an immediate callback
+      description: Queue an immediate callback from a consultant for an urgent enquiry. Returns a callback reference. DEMO ONLY.
+      parameters:
+        - { name: consultant_id, in: path, required: true, schema: { type: string, example: CONS-CHC-001 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CallbackRequest" }
+      responses:
+        "201":
+          description: Callback queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  callback_queued: { type: boolean }
+                  callback_reference: { type: string, example: CB-A1B2C3D4 }
+                  consultant_id: { type: string }
+                  urgency: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: consultant_not_found }
+        message: { type: string }
+    Store:
+      type: object
+      properties:
+        store_id: { type: string, example: STORE-CHC-CITY }
+        name: { type: string }
+        city: { type: string, example: Christchurch }
+        suburb: { type: string }
+        address: { type: string }
+        phone: { type: string }
+        hours: { type: string }
+        maps_url: { type: string }
+    Consultant:
+      type: object
+      properties:
+        consultant_id: { type: string, example: CONS-CHC-001 }
+        name: { type: string, example: "Sarah Mitchell" }
+        store_id: { type: string, example: STORE-CHC-CITY }
+        city: { type: string, example: Christchurch }
+        specialisations: { type: array, items: { type: string }, example: ["Cruise", "Luxury"] }
+        languages: { type: array, items: { type: string }, example: ["English"] }
+        rating: { type: number, format: float, example: 4.9 }
+        photo_url: { type: string }
+        video_appointment_url: { type: string }
+    AppointmentRequest:
+      type: object
+      properties:
+        appointment_type: { type: string, enum: [in_store, phone, video, email], example: video }
+        preferred_datetime: { type: string, format: date-time }
+        customer_details: { type: object }
+    CallbackRequest:
+      type: object
+      properties:
+        customer_phone: { type: string, example: "+64 21 555 0100" }
+        urgency: { type: string, enum: [low, normal, high], example: high }

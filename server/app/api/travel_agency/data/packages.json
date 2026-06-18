@@ -1,0 +1,139 @@
+{
+  "packages": [
+    {
+      "package_id": "PKG-FIJI-SOFITEL",
+      "name": "Sofitel Fiji Resort & Spa Escape",
+      "destination": "Fiji",
+      "hotel_name": "Sofitel Fiji Resort & Spa",
+      "star_rating": 5,
+      "location": "Denarau Island, Fiji",
+      "nights": 7,
+      "board_basis": "breakfast",
+      "price_per_person_nzd": 2349.0,
+      "total_price_nzd": 4698.0,
+      "departure_airport": "AKL",
+      "inclusions": [
+        "Return economy flights from Auckland",
+        "7 nights in a Garden View room",
+        "Daily buffet breakfast",
+        "Return airport transfers",
+        "Welcome drink on arrival"
+      ],
+      "exclusions": [
+        "Travel insurance",
+        "Lunch and dinner",
+        "Optional excursions"
+      ],
+      "deal_expiry": "2026-05-31",
+      "rooms_remaining": 4,
+      "upgrades": [
+        { "type": "room", "name": "Ocean View room", "extra_per_person_nzd": 150.0 },
+        { "type": "board", "name": "Half board (breakfast + dinner)", "extra_per_person_nzd": 220.0 }
+      ]
+    },
+    {
+      "package_id": "PKG-FIJI-OUTRIGGER",
+      "name": "Outrigger Fiji Beach Resort Getaway",
+      "destination": "Fiji",
+      "hotel_name": "Outrigger Fiji Beach Resort",
+      "star_rating": 5,
+      "location": "Coral Coast, Fiji",
+      "nights": 7,
+      "board_basis": "breakfast",
+      "price_per_person_nzd": 2199.0,
+      "total_price_nzd": 4398.0,
+      "departure_airport": "AKL",
+      "inclusions": [
+        "Return economy flights from Auckland",
+        "7 nights in a Plantation room",
+        "Daily breakfast",
+        "Return airport transfers",
+        "Kids club access"
+      ],
+      "exclusions": ["Travel insurance", "Lunch and dinner", "Spa treatments"],
+      "deal_expiry": "2026-06-15",
+      "rooms_remaining": 7,
+      "upgrades": [
+        { "type": "room", "name": "Ocean Breeze Villa", "extra_per_person_nzd": 320.0 },
+        { "type": "insurance", "name": "Comprehensive travel insurance", "extra_per_person_nzd": 149.0 }
+      ]
+    },
+    {
+      "package_id": "PKG-FIJI-WARWICK",
+      "name": "Warwick Fiji Resort Holiday",
+      "destination": "Fiji",
+      "hotel_name": "Warwick Fiji",
+      "star_rating": 5,
+      "location": "Coral Coast, Fiji",
+      "nights": 7,
+      "board_basis": "breakfast",
+      "price_per_person_nzd": 2089.0,
+      "total_price_nzd": 4178.0,
+      "departure_airport": "AKL",
+      "inclusions": [
+        "Return economy flights from Auckland",
+        "7 nights in a Superior room",
+        "Daily breakfast",
+        "Return airport transfers"
+      ],
+      "exclusions": ["Travel insurance", "Lunch and dinner", "Resort activities"],
+      "deal_expiry": "2026-06-30",
+      "rooms_remaining": 12,
+      "upgrades": [
+        { "type": "board", "name": "All-inclusive", "extra_per_person_nzd": 410.0 }
+      ]
+    },
+    {
+      "package_id": "PKG-BALI-AYANA",
+      "name": "AYANA Resort Bali Luxury Escape",
+      "destination": "Bali",
+      "hotel_name": "AYANA Resort and Spa",
+      "star_rating": 5,
+      "location": "Jimbaran, Bali",
+      "nights": 6,
+      "board_basis": "breakfast",
+      "price_per_person_nzd": 1899.0,
+      "total_price_nzd": 3798.0,
+      "departure_airport": "AKL",
+      "inclusions": [
+        "Return economy flights from Auckland",
+        "6 nights in a Resort View room",
+        "Daily breakfast",
+        "Return private transfers",
+        "Access to Rock Bar"
+      ],
+      "exclusions": ["Travel insurance", "Visa on arrival fee", "Excursions"],
+      "deal_expiry": "2026-07-20",
+      "rooms_remaining": 5,
+      "upgrades": [
+        { "type": "room", "name": "Ocean View Suite", "extra_per_person_nzd": 280.0 }
+      ]
+    },
+    {
+      "package_id": "PKG-RARO-PACIFIC",
+      "name": "Pacific Resort Rarotonga Retreat",
+      "destination": "Cook Islands",
+      "hotel_name": "Pacific Resort Rarotonga",
+      "star_rating": 4,
+      "location": "Muri Beach, Rarotonga",
+      "nights": 5,
+      "board_basis": "room_only",
+      "price_per_person_nzd": 1649.0,
+      "total_price_nzd": 3298.0,
+      "departure_airport": "AKL",
+      "inclusions": [
+        "Return economy flights from Auckland",
+        "5 nights in a Garden Studio",
+        "Return airport transfers",
+        "Welcome lei greeting"
+      ],
+      "exclusions": ["Travel insurance", "All meals", "Lagoon cruise"],
+      "deal_expiry": "2026-08-10",
+      "rooms_remaining": 9,
+      "upgrades": [
+        { "type": "board", "name": "Daily breakfast", "extra_per_person_nzd": 130.0 },
+        { "type": "room", "name": "Beachfront Bungalow", "extra_per_person_nzd": 240.0 }
+      ]
+    }
+  ]
+}

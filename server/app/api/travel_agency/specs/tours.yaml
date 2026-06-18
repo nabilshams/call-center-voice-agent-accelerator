@@ -1,0 +1,141 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - Tours API
+  version: 1.0.0
+  description: >-
+    Search guided tours, get tour and operator details, and register tour
+    enquiries.
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files. Enquiries live only for the lifetime of the server process.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/tours
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/tours
+    description: Local development
+paths:
+  /search:
+    get:
+      operationId: search_tours
+      summary: Search guided tours
+      description: >-
+        Search guided tours by region, travel style, fitness level, and
+        duration (days). All filters optional. Returns tours with operator,
+        highlights, price-from (NZD), and a 'why it suits' note.
+      parameters:
+        - { name: region, in: query, schema: { type: string, example: Asia }, description: "e.g. Europe, Asia, Americas, Africa" }
+        - { name: style, in: query, schema: { type: string, enum: [Adventure, Cultural, Comfort, Social, Family], example: Cultural } }
+        - { name: fitness_level, in: query, schema: { type: string, enum: [easy, moderate, active, challenging], example: moderate } }
+        - { name: duration_min, in: query, schema: { type: integer, example: 7 }, description: "Minimum days" }
+        - { name: duration_max, in: query, schema: { type: integer, example: 14 }, description: "Maximum days" }
+      responses:
+        "200":
+          description: Matching tours
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  tours:
+                    type: array
+                    items: { $ref: "#/components/schemas/Tour" }
+  /operators/{operator_name}:
+    get:
+      operationId: get_operator_profile
+      summary: Get touring operator profile
+      description: Returns a touring operator's style, age range, typical group size, and overview. Use to explain the difference between operators (e.g. G Adventures vs Contiki).
+      parameters:
+        - { name: operator_name, in: path, required: true, schema: { type: string, example: "G Adventures" } }
+      responses:
+        "200":
+          description: Operator profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Operator" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{tour_id}:
+    get:
+      operationId: get_tour_details
+      summary: Get full tour details
+      description: Retrieve the complete record for a single tour, including itinerary highlights, accommodation level, group size, and solo supplement.
+      parameters:
+        - { name: tour_id, in: path, required: true, schema: { type: string, example: TOUR-GADV-JAPAN11 } }
+      responses:
+        "200":
+          description: Tour details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tour" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{tour_id}/enquiry:
+    post:
+      operationId: create_tour_enquiry
+      summary: Register a tour enquiry
+      description: Register a customer's interest in a tour and preferred departure. Returns an enquiry reference. DEMO ONLY.
+      parameters:
+        - { name: tour_id, in: path, required: true, schema: { type: string, example: TOUR-GADV-JAPAN11 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TourEnquiryRequest" }
+      responses:
+        "201":
+          description: Enquiry registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enquiry_registered: { type: boolean }
+                  enquiry_reference: { type: string, example: ENQ-A1B2C3D4 }
+                  tour_id: { type: string }
+                  tour_name: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: tour_not_found }
+        message: { type: string }
+    Operator:
+      type: object
+      properties:
+        operator_name: { type: string, example: "G Adventures" }
+        style: { type: string, example: Adventure }
+        age_range: { type: string, example: "18-70" }
+        typical_group_size: { type: integer, example: 16 }
+        overview: { type: string }
+    Tour:
+      type: object
+      properties:
+        tour_id: { type: string, example: TOUR-GADV-JAPAN11 }
+        operator_name: { type: string, example: "G Adventures" }
+        name: { type: string }
+        region: { type: string, example: Asia }
+        country: { type: string, example: Japan }
+        style: { type: string, example: Cultural }
+        duration_days: { type: integer, example: 11 }
+        price_from_nzd: { type: number, format: float, example: 2890.0 }
+        fitness_level: { type: string, example: moderate }
+        max_group_size: { type: integer, example: 16 }
+        departure_months: { type: array, items: { type: string } }
+        highlights: { type: array, items: { type: string } }
+        accommodation_level: { type: string }
+        why_it_suits: { type: string }
+        solo_supplement_nzd: { type: number, format: float, example: 0.0 }
+        solo_supplement_waiver: { type: boolean, example: true }
+    TourEnquiryRequest:
+      type: object
+      properties:
+        customer_details: { type: object }
+        preferred_departure: { type: string, example: "2026-09" }

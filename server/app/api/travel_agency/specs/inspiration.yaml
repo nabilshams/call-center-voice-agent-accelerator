@@ -1,0 +1,114 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - Travel Inspiration API
+  version: 1.0.0
+  description: >-
+    Destination highlights, best time to visit, trending destinations, and a
+    search over 'Inspire Me' articles.
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/inspiration
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/inspiration
+    description: Local development
+paths:
+  /destinations/{destination}:
+    get:
+      operationId: get_destination_highlights
+      summary: Get destination highlights and tips
+      description: Returns top experiences, best time to visit, traveller types, and travel tips for a destination. Use to inspire a customer who is undecided.
+      parameters:
+        - { name: destination, in: path, required: true, schema: { type: string, example: Japan } }
+      responses:
+        "200":
+          description: Destination highlights
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Destination" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /destinations/{destination}/best-time:
+    get:
+      operationId: get_best_time_to_visit
+      summary: Get best time to visit a destination
+      description: Returns the recommended travel window plus a season-by-season breakdown of weather and events for a destination.
+      parameters:
+        - { name: destination, in: path, required: true, schema: { type: string, example: Japan } }
+      responses:
+        "200":
+          description: Seasonal breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  destination: { type: string }
+                  best_time_to_visit: { type: string }
+                  seasonal_breakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        season: { type: string }
+                        weather: { type: string }
+                        events: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /trending:
+    get:
+      operationId: get_trending_destinations
+      summary: Get trending destinations
+      description: Returns popular destinations for a given month and/or traveller type. Use to suggest where to go when the customer has no destination in mind.
+      parameters:
+        - { name: month, in: query, schema: { type: string, example: March } }
+        - { name: traveller_type, in: query, schema: { type: string, example: couple }, description: "e.g. couple, family, solo" }
+      responses:
+        "200":
+          description: Trending destinations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  trending: { type: array, items: { type: object } }
+  /content:
+    get:
+      operationId: search_inspiration_content
+      summary: Search inspiration articles
+      description: Search Wanderlux 'Inspire Me' articles by destination or theme keyword. Returns matching article titles and links.
+      parameters:
+        - { name: q, in: query, schema: { type: string, example: Japan }, description: "Destination or theme keyword" }
+      responses:
+        "200":
+          description: Matching articles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  articles: { type: array, items: { type: object } }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: destination_not_found }
+        message: { type: string }
+    Destination:
+      type: object
+      properties:
+        destination: { type: string, example: Japan }
+        highlights: { type: array, items: { type: string } }
+        best_time_to_visit: { type: string }
+        traveller_types: { type: array, items: { type: string } }
+        travel_tips: { type: string }
+        seasonal_breakdown: { type: array, items: { type: object } }

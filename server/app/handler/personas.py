@@ -15,8 +15,8 @@ class Persona(TypedDict):
     personality_notes: str
 
 
-# Available personas - each represents a "different person" on the support line
-PERSONAS: list[Persona] = [
+# Available personas for MMH incident support
+MMH_PERSONAS: list[Persona] = [
     {
         "name": "Sarah",
         "voice": "en-NZ-MollyNeural",
@@ -50,12 +50,43 @@ PERSONAS: list[Persona] = [
 ]
 
 
-def get_random_persona() -> Persona:
+# Available personas for travel booking support
+TRAVEL_PERSONAS: list[Persona] = [
+    {
+        "name": "Sophie",
+        "voice": "en-NZ-MollyNeural",
+        "greeting_style": "Hi, this is Sophie from travel support. I can help with flights and hotels.",
+        "personality_notes": "Friendly and organized. Helps compare options quickly and clearly.",
+    },
+    {
+        "name": "Liam",
+        "voice": "en-NZ-MitchellNeural",
+        "greeting_style": "Kia ora, Liam here from travel support. Where are you planning to go?",
+        "personality_notes": "Practical and concise. Focuses on dates, budget, and best-fit options.",
+    },
+    {
+        "name": "Mia",
+        "voice": "en-NZ-MollyNeural",
+        "greeting_style": "Hello, Mia from travel support. I can help you plan your trip end-to-end.",
+        "personality_notes": "Warm and detail-oriented. Good at tailoring flights and hotel choices.",
+    },
+    {
+        "name": "Noah",
+        "voice": "en-NZ-MitchellNeural",
+        "greeting_style": "Hey, Noah speaking from travel support. Let's sort out your itinerary.",
+        "personality_notes": "Relaxed and efficient. Good at narrowing options based on trade-offs.",
+    },
+]
+
+
+def get_random_persona(persona_context: str = "mmh") -> Persona:
     """Select a random persona for a new session."""
-    return random.choice(PERSONAS)
+    if persona_context == "travel":
+        return random.choice(TRAVEL_PERSONAS)
+    return random.choice(MMH_PERSONAS)
 
 
-def build_persona_prompt(persona: Persona, base_prompt: str) -> str:
+def build_persona_prompt(persona: Persona, base_prompt: str, persona_context: str = "mmh") -> str:
     """Inject persona details into the base system prompt.
     
     Args:
@@ -65,9 +96,11 @@ def build_persona_prompt(persona: Persona, base_prompt: str) -> str:
     Returns:
         Modified prompt with persona identity injected
     """
+    support_context = "travel booking assistant team" if persona_context == "travel" else "MMH cybersecurity incident helpline"
+
     persona_section = f"""
 # Your Identity This Session
-You are **{persona['name']}**, a support team member on the MMH cybersecurity incident helpline.
+You are **{persona['name']}**, a support team member on the {support_context}.
 - Always introduce yourself as {persona['name']} at the start of the call.
 - Your natural greeting: "{persona['greeting_style']}"
 - Personality: {persona['personality_notes']}

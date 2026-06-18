@@ -1,0 +1,199 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - Post-Booking Concierge API
+  version: 1.0.0
+  description: >-
+    Retrieve existing bookings, add insurance, and answer pre-trip questions
+    (visa, baggage, destination tips, check-in, insurance options).
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files. Booking changes live only for the lifetime of the server
+    process.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/bookings
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/bookings
+    description: Local development
+paths:
+  /search:
+    get:
+      operationId: get_booking_by_email
+      summary: Find bookings by email
+      description: Returns bookings associated with an email address. Use when a customer does not have their booking reference to hand.
+      parameters:
+        - { name: email, in: query, required: true, schema: { type: string, format: email, example: jane.thompson@example.com } }
+      responses:
+        "200":
+          description: Bookings for email
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  bookings:
+                    type: array
+                    items: { $ref: "#/components/schemas/Booking" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /visa:
+    get:
+      operationId: get_visa_requirements
+      summary: Get visa requirements
+      description: Returns general entry/visa requirements for a nationality and destination country, with an official-source disclaimer. Defaults nationality to New Zealand.
+      parameters:
+        - { name: nationality, in: query, schema: { type: string, default: "New Zealand", example: "New Zealand" } }
+        - { name: destination_country, in: query, schema: { type: string, example: Japan } }
+      responses:
+        "200":
+          description: Visa requirements
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /baggage:
+    get:
+      operationId: get_baggage_policy
+      summary: Get baggage allowance
+      description: Returns checked and carry-on baggage allowances for an airline and cabin class. Defaults cabin_class to economy.
+      parameters:
+        - { name: airline, in: query, schema: { type: string, example: "Air New Zealand" } }
+        - { name: cabin_class, in: query, schema: { type: string, default: economy, example: economy } }
+      responses:
+        "200":
+          description: Baggage policy
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /destination-tips:
+    get:
+      operationId: get_destination_tips
+      summary: Get pre-trip destination tips
+      description: Returns weather, currency, safety, and packing tips for a destination and optional travel month. Use to help a customer prepare for departure.
+      parameters:
+        - { name: destination, in: query, schema: { type: string, example: Japan } }
+        - { name: travel_month, in: query, schema: { type: string, example: September } }
+      responses:
+        "200":
+          description: Destination tips
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /checkin:
+    get:
+      operationId: get_flight_check_in_info
+      summary: Get flight check-in information
+      description: Returns the check-in window, online check-in link, and terminal for a flight number and departure date.
+      parameters:
+        - { name: flight_number, in: query, schema: { type: string, example: NZ99 } }
+        - { name: departure_date, in: query, schema: { type: string, format: date, example: "2026-09-10" } }
+      responses:
+        "200":
+          description: Check-in info
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /insurance-options:
+    get:
+      operationId: get_travel_insurance_options
+      summary: List travel insurance tiers
+      description: Returns the available travel insurance tiers (Essentials, Comprehensive, Premium) with pricing and cover.
+      responses:
+        "200":
+          description: Insurance tiers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tiers: { type: array, items: { type: object } }
+  /{reference}:
+    get:
+      operationId: get_booking_by_reference
+      summary: Get booking by reference (identity-checked)
+      description: >-
+        Retrieve a booking by its reference. Identity verification is required -
+        the last_name query parameter must match the booking, otherwise 403 is
+        returned. Use after the customer provides their reference and surname.
+      parameters:
+        - { name: reference, in: path, required: true, schema: { type: string, example: HOT-847291 } }
+        - { name: last_name, in: query, required: true, schema: { type: string, example: Siddiqui }, description: "Must match the booking surname for identity verification" }
+      responses:
+        "200":
+          description: Booking details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Booking" }
+        "403":
+          description: Identity verification required or failed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{reference}/insurance:
+    post:
+      operationId: add_insurance_to_booking
+      summary: Add travel insurance to an existing booking
+      description: Adds a travel insurance tier to an existing booking and updates the total. Returns the updated booking. DEMO ONLY.
+      parameters:
+        - { name: reference, in: path, required: true, schema: { type: string, example: HOT-847291 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [insurance_tier]
+              properties:
+                insurance_tier: { type: string, enum: [Essentials, Comprehensive, Premium], example: Comprehensive }
+      responses:
+        "200":
+          description: Updated booking
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: boolean }
+                  booking: { $ref: "#/components/schemas/Booking" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: booking_not_found }
+        message: { type: string }
+    Booking:
+      type: object
+      properties:
+        booking_reference: { type: string, example: HOT-847291 }
+        last_name: { type: string, example: Siddiqui }
+        email: { type: string, format: email }
+        lead_passenger: { type: string }
+        passengers: { type: integer, example: 1 }
+        type: { type: string, example: flight }
+        itinerary: { type: string }
+        airline: { type: string, nullable: true }
+        flight_number: { type: string, nullable: true }
+        cabin_class: { type: string, nullable: true }
+        departure_date: { type: string, format: date, nullable: true }
+        return_date: { type: string, format: date, nullable: true }
+        destination: { type: string }
+        total_nzd: { type: number, format: float, example: 1388.0 }
+        insurance: { type: string, nullable: true }
+        status: { type: string, example: confirmed }

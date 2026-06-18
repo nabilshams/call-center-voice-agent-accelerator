@@ -1,0 +1,73 @@
+{
+  "deals": [
+    {
+      "deal_id": "DEAL-FIJI-001",
+      "name": "Fiji Family Free Kids Special",
+      "destination": "Fiji",
+      "deal_type": "package",
+      "price_from_nzd": 1899.0,
+      "departure_airport": "AKL",
+      "valid_until": "2026-06-30",
+      "description": "7 nights at a 5-star Fiji resort with kids stay and eat free.",
+      "url": "https://www.wanderlux.co.nz/deals/fiji-family"
+    },
+    {
+      "deal_id": "DEAL-BALI-001",
+      "name": "Bali Luxury Villa Flash Sale",
+      "destination": "Bali",
+      "deal_type": "package",
+      "price_from_nzd": 1599.0,
+      "departure_airport": "AKL",
+      "valid_until": "2026-05-20",
+      "description": "6 nights in a private pool villa with daily breakfast and transfers.",
+      "url": "https://www.wanderlux.co.nz/deals/bali-villa"
+    },
+    {
+      "deal_id": "DEAL-MALDIVES-001",
+      "name": "Maldives Honeymoon Overwater Escape",
+      "destination": "Maldives",
+      "deal_type": "package",
+      "price_from_nzd": 3499.0,
+      "departure_airport": "AKL",
+      "valid_until": "2026-08-31",
+      "description": "5 nights in an overwater villa with half board and seaplane transfers.",
+      "url": "https://www.wanderlux.co.nz/deals/maldives-honeymoon"
+    },
+    {
+      "deal_id": "DEAL-SYD-FLIGHT-001",
+      "name": "Auckland to Sydney Return Flight Deal",
+      "destination": "Sydney",
+      "deal_type": "flight",
+      "price_from_nzd": 298.0,
+      "departure_airport": "AKL",
+      "valid_until": "2026-04-30",
+      "description": "Return economy flights to Sydney with carry-on baggage.",
+      "url": "https://www.wanderlux.co.nz/deals/syd-flight"
+    },
+    {
+      "deal_id": "DEAL-PACIFIC-CRUISE-001",
+      "name": "South Pacific Cruise Earlybird",
+      "destination": "Pacific",
+      "deal_type": "cruise",
+      "price_from_nzd": 1450.0,
+      "departure_airport": "AKL",
+      "valid_until": "2026-07-15",
+      "description": "8-night South Pacific cruise with onboard credit when you book early.",
+      "url": "https://www.wanderlux.co.nz/deals/pacific-cruise"
+    }
+  ],
+  "preference_profiles": [
+    {
+      "customer_id": "CUST-1001",
+      "email": "demo.customer@example.com",
+      "destinations": ["Fiji", "Maldives"],
+      "months": ["June", "July", "August"],
+      "adults": 2,
+      "children": 0,
+      "max_budget_nzd": 3500.0,
+      "deal_types": ["package"],
+      "departure_airport": "AKL",
+      "notification_channel": "email"
+    }
+  ]
+}

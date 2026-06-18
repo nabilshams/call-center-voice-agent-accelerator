@@ -87,3 +87,83 @@ To test Azure Communication Services (ACS) locally, we’ll expose the local ser
 - Use the **web client** for fast local testing.
 - Use **DevTunnel + ACS** to simulate phone calls and test telephony integration.
 - Customize the `.env` file, system prompts, and runtime behavior to fit your use case.
+
+## 3. Travel Orchestrator (Foundry / Microsoft Agent Framework + Local Fallback)
+
+The travel support app can orchestrate requests through either Azure AI Foundry workflows or Microsoft Agent Framework workflows, while keeping a local orchestrator fallback for resiliency.
+
+### Configuration
+
+Set these values in `.env`:
+
+- `TRAVEL_ORCHESTRATOR_MODE=foundry|local`
+- `FOUNDRY_WORKFLOW_ENDPOINT=https://<your-project>.services.ai.azure.com`
+- `FOUNDRY_WORKFLOW_PATH=api/agents/<workflow-or-agent-name>:invoke`
+- `FOUNDRY_API_KEY=<optional-if-not-using-managed-identity>`
+- `FOUNDRY_WORKFLOW_TIMEOUT_SECONDS=25`
+- `MAF_WORKFLOW_ENDPOINT=https://<your-project>.services.ai.azure.com`
+- `MAF_WORKFLOW_PATH=api/agents/<maf-workflow-or-agent-name>:invoke`
+- `MAF_API_KEY=<optional-if-not-using-managed-identity>`
+- `MAF_WORKFLOW_TIMEOUT_SECONDS=25`
+- `MAF_NATIVE_SDK_ENABLED=true`
+- `MAF_PROJECT_ENDPOINT=https://<your-foundry-service>.services.ai.azure.com/api/projects/<project-name>`
+- `MAF_MODEL=gpt-4o-mini`
+
+Use one mode value for interchangeable runtime switching:
+
+- `TRAVEL_ORCHESTRATOR_MODE=foundry`
+- `TRAVEL_ORCHESTRATOR_MODE=maf`
+- `TRAVEL_ORCHESTRATOR_MODE=maf-local`
+- `TRAVEL_ORCHESTRATOR_MODE=local`
+
+### Behavior
+
+- `foundry` mode: server calls Foundry workflow first, then falls back to local orchestrator if Foundry is unavailable.
+- `maf` mode: server calls Microsoft Agent Framework workflow first, then falls back to local orchestrator if MAF is unavailable.
+- `maf-local` mode: server uses Native MAF SDK agents in-process (`OrchestratorAgent -> If/Else -> SpecialistAgent`) with deterministic fallback if SDK/config is unavailable.
+- `local` mode: server uses only local orchestrator.
+
+### Native MAF SDK Notes
+
+- Native local mode uses the Python `agent-framework` package and `FoundryChatClient`.
+- If `agent-framework` is not installed or Native MAF configuration is incomplete, `maf-local` transparently falls back to deterministic branch routing to preserve availability.
+
+The API endpoint is:
+
+- `POST /travel/orchestrate`
+
+Request body:
+
+```json
+{
+    "message": "I need a flight and hotel for Paris next month",
+    "context": {
+        "origin": "Auckland"
+    }
+}
+```
+
+Response includes:
+
+- `spoken_reply`
+- `clarification_question`
+- `selected_agents`
+- `confidence`
+- `next_step`
+- `orchestrator_mode` (`foundry`, `maf`, `maf-local`, `local`, or `local-fallback`)
+
+### Quick Local Test
+
+```bash
+curl -X POST http://127.0.0.1:8000/travel/orchestrate \
+    -H "Content-Type: application/json" \
+    -d '{"message":"I need a flight to Paris next month","context":{"origin":"Auckland"}}'
+```
+
+### UI Integration
+
+The `/travel-support` page now sends user utterances to `/travel/orchestrate` and shows routing telemetry (selected agents, confidence, mode) in the workflow panel.
+
+### Monitoring
+
+The server logs orchestration mode, selected agents, and confidence for every request. In production, route application logs to Application Insights and query these orchestration events.

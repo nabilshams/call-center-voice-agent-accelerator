@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recap</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #e8e8e8;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+      color: #00d4ff;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: #a0a0a0;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+
+    button {
+      padding: 1rem 2rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 0.6rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #startTranscriptionBtn {
+      background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+      color: #1a1a2e;
+    }
+
+    #startTranscriptionBtn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+    }
+
+    #startTranscriptionBtn:disabled {
+      background: #3a3a5a;
+      color: #6a6a8a;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    #stopTranscriptionBtn {
+      background: linear-gradient(135deg, #ff4757 0%, #cc3344 100%);
+      color: white;
+    }
+
+    #stopTranscriptionBtn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
+    }
+
+    #stopTranscriptionBtn:disabled {
+      background: #3a3a5a;
+      color: #6a6a8a;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #6a6a8a;
+      transition: background 0.3s ease;
+    }
+
+    .status-indicator.active {
+      background: #00ff88;
+      box-shadow: 0 0 10px #00ff88;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .status-indicator.error {
+      background: #ff4757;
+    }
+
+    #statusText {
+      color: #a0a0a0;
+    }
+
+    .transcription-panel {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      min-height: 400px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .transcription-panel::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .transcription-panel::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+    }
+
+    .transcription-panel::-webkit-scrollbar-thumb {
+      background: rgba(0, 212, 255, 0.3);
+      border-radius: 4px;
+    }
+
+    .transcription-panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 212, 255, 0.5);
+    }
+
+    .transcript-entry {
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+      border-radius: 0.5rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .transcript-entry.partial {
+      background: rgba(0, 212, 255, 0.1);
+      border-left: 3px solid #00d4ff;
+      color: #a0c8d8;
+      font-style: italic;
+    }
+
+    .transcript-entry.final {
+      background: rgba(0, 255, 136, 0.1);
+      border-left: 3px solid #00ff88;
+      color: #e8e8e8;
+    }
+
+    .transcript-entry .timestamp {
+      font-size: 0.75rem;
+      color: #6a6a8a;
+      margin-bottom: 0.25rem;
+    }
+
+    .transcript-entry .speaker {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.3rem;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+      background: rgba(255, 255, 255, 0.08);
+      color: #e8e8e8;
+    }
+
+    .transcript-entry .speaker.s1 { background: rgba(0, 212, 255, 0.25); color: #00d4ff; }
+    .transcript-entry .speaker.s2 { background: rgba(255, 159, 67, 0.25); color: #ff9f43; }
+    .transcript-entry .speaker.s3 { background: rgba(186, 104, 200, 0.25); color: #ba68c8; }
+    .transcript-entry .speaker.s4 { background: rgba(0, 255, 136, 0.25); color: #00ff88; }
+    .transcript-entry .speaker.s5 { background: rgba(255, 71, 87, 0.25); color: #ff6b78; }
+
+    .transcript-entry .persona {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 0.1rem 0.45rem;
+      border-radius: 0.3rem;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+      background: rgba(255, 255, 255, 0.06);
+      color: #c8c8e0;
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+    }
+    .transcript-entry .persona.high { border-style: solid; color: #f0f0f0; }
+    .transcript-entry .persona.medium { color: #d8d8e8; }
+    .transcript-entry .persona.low { opacity: 0.7; }
+
+    .persona-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding: 0.65rem 0.85rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 0.5rem;
+      font-size: 0.85rem;
+      color: #c8c8e0;
+    }
+    .persona-bar .label { color: #8a8aa8; margin-right: 0.5rem; }
+    .persona-bar .pill {
+      padding: 0.2rem 0.55rem;
+      border-radius: 0.4rem;
+      background: rgba(0, 212, 255, 0.12);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      color: #cfeeff;
+    }
+    .persona-bar .pill .who { font-weight: 600; margin-right: 0.35rem; }
+    .persona-bar .pill .conf { opacity: 0.7; font-size: 0.75rem; margin-left: 0.35rem; }
+
+    .transcript-entry .text {
+      font-size: 1.05rem;
+      line-height: 1.5;
+    }
+
+    .saved-banner {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      background: rgba(0, 255, 136, 0.1);
+      border: 1px solid rgba(0, 255, 136, 0.4);
+      border-radius: 0.5rem;
+      color: #c8f7df;
+      font-size: 0.9rem;
+      word-break: break-all;
+    }
+
+    .saved-banner a { color: #00ff88; text-decoration: underline; }
+
+    .summary-panel {
+      margin-top: 1.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      padding: 1.5rem;
+    }
+    .summary-panel h2 {
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+      color: #a0a0a0;
+      font-weight: 500;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .summary-panel .summary-text {
+      font-size: 1rem;
+      line-height: 1.55;
+      color: #e8e8e8;
+      margin-bottom: 1rem;
+    }
+    .summary-panel h3 {
+      font-size: 0.85rem;
+      color: #00d4ff;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 1rem 0 0.5rem;
+    }
+    .summary-panel ul {
+      margin: 0;
+      padding-left: 1.25rem;
+      color: #c8c8e0;
+      line-height: 1.5;
+    }
+    .summary-panel li { margin-bottom: 0.35rem; }
+    .summary-panel.loading .summary-text { color: #8a8aa8; font-style: italic; }
+
+    /* SOAP note panel */
+    .note-banner {
+      margin-top: -0.5rem;
+      margin-bottom: 1rem;
+      padding: 0.55rem 0.85rem;
+      background: rgba(255, 159, 67, 0.1);
+      border: 1px solid rgba(255, 159, 67, 0.4);
+      border-radius: 0.4rem;
+      color: #ffd6a8;
+      font-size: 0.8rem;
+    }
+    .note-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .note-actions button {
+      background: rgba(0, 212, 255, 0.15);
+      border: 1px solid rgba(0, 212, 255, 0.4);
+      color: #00d4ff;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.85rem;
+      border-radius: 0.4rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .note-actions button:hover { background: rgba(0, 212, 255, 0.25); color: #fff; }
+    .soap-section { margin-bottom: 1rem; }
+    .soap-section .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+    .soap-section .section-head .left {
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .soap-section h3 {
+      font-size: 0.85rem;
+      color: #00d4ff;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 0;
+    }
+    .conf-chip {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.45rem;
+      border-radius: 0.35rem;
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #c8c8e0;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .conf-chip.high { background: rgba(0,255,136,0.15); border-color: rgba(0,255,136,0.4); color: #c8f7df; }
+    .conf-chip.medium { background: rgba(255,159,67,0.15); border-color: rgba(255,159,67,0.4); color: #ffd6a8; }
+    .conf-chip.low { background: rgba(255,71,87,0.12); border-color: rgba(255,71,87,0.35); color: #ffb3bb; }
+    .section-actions { display: flex; gap: 0.35rem; }
+    .section-actions button {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #c8c8e0;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.75rem;
+      border-radius: 0.3rem;
+      cursor: pointer;
+    }
+    .section-actions button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .section-actions button:disabled { opacity: 0.5; cursor: progress; }
+    .soap-section .section-body {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 0.4rem;
+      padding: 0.7rem 0.9rem;
+      color: #e8e8e8;
+      font-size: 0.95rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      min-height: 2.5rem;
+      outline: none;
+    }
+    .soap-section .section-body[contenteditable="true"]:focus {
+      border-color: rgba(0, 212, 255, 0.5);
+      background: rgba(0, 212, 255, 0.04);
+    }
+    .soap-section .section-body ul { margin: 0.25rem 0; padding-left: 1.25rem; }
+    .soap-section .section-body li { margin-bottom: 0.25rem; }
+
+    /* Timer + pause button */
+    #elapsedTime { color: #00d4ff; font-variant-numeric: tabular-nums; margin-left: 0.5rem; }
+    button.pause-btn {
+      background: rgba(255, 159, 67, 0.15);
+      border: 1px solid rgba(255, 159, 67, 0.4);
+      color: #ff9f43;
+    }
+    button.pause-btn:hover:not(:disabled) {
+      background: rgba(255, 159, 67, 0.25); color: #fff;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 300px;
+      color: #6a6a8a;
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    .clear-btn {
+      position: absolute;
+      top: 0px;
+      right: 1rem;
+      background: rgba(0, 212, 255, 0.15);
+      border: 1px solid rgba(0, 212, 255, 0.4);
+      color: #00d4ff;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      border-radius: 0.4rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .clear-btn:hover {
+      background: rgba(0, 212, 255, 0.25);
+      color: #fff;
+      border-color: rgba(0, 212, 255, 0.6);
+    }
+
+    .panel-header {
+      position: relative;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: #a0a0a0;
+      font-weight: 500;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 2rem;
+      font-size: 0.85rem;
+      color: #6a6a8a;
+    }
+
+    footer a {
+      color: #00d4ff;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #00d4ff;
+      text-decoration: none;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      transition: color 0.2s ease;
+    }
+
+    .back-link:hover {
+      color: #00a8cc;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📝 Recap</h1>
+      <p class="subtitle">Capture the conversation. Get the note.</p>
+    </header>
+
+    <div class="controls">
+      <button id="startTranscriptionBtn" onclick="startTranscription()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+        Start Encounter
+      </button>
+      <button id="pauseTranscriptionBtn" class="pause-btn" onclick="togglePause()" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="5" width="4" height="14" rx="1"/>
+          <rect x="14" y="5" width="4" height="14" rx="1"/>
+        </svg>
+        <span id="pauseLabel">Pause</span>
+      </button>
+      <button id="stopTranscriptionBtn" onclick="stopTranscription()" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="6" width="12" height="12" rx="2"/>
+        </svg>
+        End &amp; Generate Note
+      </button>
+    </div>
+
+    <div class="status-bar">
+      <div id="statusIndicator" class="status-indicator"></div>
+      <span id="statusText">Ready to start</span>
+      <span id="elapsedTime"></span>
+    </div>
+
+    <div class="transcription-panel">
+      <div class="panel-header">
+        <h2>Transcription Output</h2>
+        <button class="clear-btn" onclick="clearTranscription()">Clear</button>
+      </div>
+      <div id="personaBar" class="persona-bar" style="display:none;">
+        <span class="label">Inferred personas:</span>
+        <span id="personaPills"></span>
+      </div>
+      <div id="transcriptionContent">
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+          </svg>
+          <p>Click "Start Transcription" to begin</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="summaryPanel" class="summary-panel" style="display:none;">
+      <h2 id="summaryHeading">Clinical Note (Draft)</h2>
+      <div id="summaryBody"></div>
+    </div>
+
+    <footer>
+      Powered by <a href="https://learn.microsoft.com/azure/ai-services/speech-service/" target="_blank">Azure Speech Services</a>
+    </footer>
+  </div>
+
+  <script>
+    let socket = null;
+    let mediaStream = null;
+    let audioContext = null;
+    let processor = null;
+    let source = null;
+    let partialElement = null;
+    const speakerClassMap = {};
+    let nextSpeakerClassIdx = 1;
+    // Map of speaker label (e.g. "Speaker 1") -> { persona, confidence, rationale }
+    const personaMap = {};
+    // Latest LLM-diarized dialogue turns (replaces individual final entries)
+    let dialogueTurns = [];
+
+    function speakerDisplay(speaker) {
+      const info = personaMap[speaker];
+      if (!info || !info.persona || info.persona === 'Unknown') return speaker;
+      return `${speaker} \u00b7 ${info.persona}`;
+    }
+
+    function renderPersonaBar() {
+      const bar = document.getElementById('personaBar');
+      const pills = document.getElementById('personaPills');
+      const entries = Object.entries(personaMap);
+      if (!entries.length) { bar.style.display = 'none'; return; }
+      bar.style.display = '';
+      pills.innerHTML = entries.map(([speaker, info]) => {
+        const conf = info.confidence ? `<span class="conf">(${escapeHtml(info.confidence)})</span>` : '';
+        const persona = info.persona && info.persona !== 'Unknown' ? info.persona : '\u2026';
+        const title = info.rationale ? ` title="${escapeHtml(info.rationale)}"` : '';
+        return `<span class="pill"${title}><span class="who">${escapeHtml(speaker)}:</span>${escapeHtml(persona)}${conf}</span>`;
+      }).join('');
+    }
+
+    function renderDialogueTurns() {
+      const content = document.getElementById('transcriptionContent');
+      // Remove any existing final entries and empty state; preserve the partial.
+      content.querySelectorAll('.transcript-entry.final, .empty-state').forEach(el => el.remove());
+      const fragment = document.createDocumentFragment();
+      for (const turn of dialogueTurns) {
+        const speaker = turn.speaker || 'Unknown';
+        const entry = document.createElement('div');
+        entry.className = 'transcript-entry final';
+        const speakerHtml = `<span class="speaker ${speakerClass(speaker)}" data-speaker="${escapeHtml(speaker)}">${escapeHtml(speakerDisplay(speaker))}</span>`;
+        entry.innerHTML = `
+          <div class="text">${speakerHtml}${escapeHtml(turn.text || '')}</div>
+        `;
+        fragment.appendChild(entry);
+      }
+      // Insert before the partial element if present, otherwise append.
+      if (partialElement && partialElement.parentNode === content) {
+        content.insertBefore(fragment, partialElement);
+      } else {
+        content.appendChild(fragment);
+      }
+      content.scrollTop = content.scrollHeight;
+    }
+
+    function handleDialogueUpdate(msg) {
+      if (msg.personas && typeof msg.personas === 'object') {
+        // Replace persona map entirely so removed speakers disappear.
+        Object.keys(personaMap).forEach(k => delete personaMap[k]);
+        Object.entries(msg.personas).forEach(([s, info]) => { personaMap[s] = info || {}; });
+        renderPersonaBar();
+      }
+      if (Array.isArray(msg.turns)) {
+        dialogueTurns = msg.turns;
+        renderDialogueTurns();
+      }
+    }
+
+    function speakerClass(speaker) {
+      if (!speaker || speaker === 'Unknown') return '';
+      if (!speakerClassMap[speaker]) {
+        speakerClassMap[speaker] = `s${nextSpeakerClassIdx}`;
+        nextSpeakerClassIdx = nextSpeakerClassIdx >= 5 ? 1 : nextSpeakerClassIdx + 1;
+      }
+      return speakerClassMap[speaker];
+    }
+
+    function updateStatus(status, isActive = false, isError = false) {
+      const indicator = document.getElementById('statusIndicator');
+      const text = document.getElementById('statusText');
+      
+      indicator.classList.remove('active', 'error');
+      if (isActive) indicator.classList.add('active');
+      if (isError) indicator.classList.add('error');
+      
+      text.textContent = status;
+    }
+
+    function formatTimestamp() {
+      return new Date().toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
+    }
+
+    function addTranscriptEntry(text, isFinal = false, speaker = 'Unknown') {
+      const content = document.getElementById('transcriptionContent');
+
+      // Remove empty state if present
+      const emptyState = content.querySelector('.empty-state');
+      if (emptyState) emptyState.remove();
+
+      const speakerHtml = `<span class="speaker ${speakerClass(speaker)}" data-speaker="${escapeHtml(speaker)}">${escapeHtml(speakerDisplay(speaker))}</span>`;
+
+      if (isFinal) {
+        // Remove partial element if exists
+        if (partialElement) {
+          partialElement.remove();
+          partialElement = null;
+        }
+
+        // Add final entry
+        const entry = document.createElement('div');
+        entry.className = 'transcript-entry final';
+        entry.innerHTML = `
+          <div class="timestamp">${formatTimestamp()}</div>
+          <div class="text">${speakerHtml}${escapeHtml(text)}</div>
+        `;
+        content.appendChild(entry);
+        content.scrollTop = content.scrollHeight;
+      } else {
+        // Update or create partial element
+        if (!partialElement) {
+          partialElement = document.createElement('div');
+          partialElement.className = 'transcript-entry partial';
+          content.appendChild(partialElement);
+        }
+        partialElement.innerHTML = `
+          <div class="timestamp">${formatTimestamp()} (recognizing...)</div>
+          <div class="text">${speakerHtml}${escapeHtml(text)}</div>
+        `;
+        content.scrollTop = content.scrollHeight;
+      }
+    }
+
+    function showSavedBanner(url, savedAt) {
+      const content = document.getElementById('transcriptionContent');
+      // Remove any previous banner
+      content.querySelectorAll('.saved-banner').forEach(el => el.remove());
+      const banner = document.createElement('div');
+      banner.className = 'saved-banner';
+      const when = savedAt ? new Date(savedAt).toLocaleString() : new Date().toLocaleString();
+      banner.innerHTML = url
+        ? `✅ Transcript saved to cloud at <strong>${escapeHtml(when)}</strong> &mdash; <a href="${encodeURI(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`
+        : `✅ Transcript saved to cloud at <strong>${escapeHtml(when)}</strong>.`;
+      content.appendChild(banner);
+      content.scrollTop = content.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function clearTranscription() {
+      const content = document.getElementById('transcriptionContent');
+      content.innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+          </svg>
+          <p>Click "Start Transcription" to begin</p>
+        </div>
+      `;
+      partialElement = null;
+      dialogueTurns = [];
+      Object.keys(personaMap).forEach(k => delete personaMap[k]);
+      renderPersonaBar();
+      hideSummary();
+      lastNoteSections = {};
+      resetTimer();
+    }
+
+    function showSummaryLoading() {
+      const panel = document.getElementById('summaryPanel');
+      const body = document.getElementById('summaryBody');
+      panel.style.display = '';
+      panel.classList.add('loading');
+      body.innerHTML = '<div class="summary-text">Generating clinical note\u2026</div>';
+    }
+
+    function hideSummary() {
+      const panel = document.getElementById('summaryPanel');
+      panel.style.display = 'none';
+      panel.classList.remove('loading');
+      document.getElementById('summaryBody').innerHTML = '';
+    }
+
+    function renderSummary(msg) {
+      const panel = document.getElementById('summaryPanel');
+      const body = document.getElementById('summaryBody');
+      panel.style.display = '';
+      panel.classList.remove('loading');
+      const parts = [];
+      if (msg.summary) {
+        parts.push(`<div class="summary-text">${escapeHtml(msg.summary)}</div>`);
+      }
+      if (Array.isArray(msg.key_points) && msg.key_points.length) {
+        parts.push('<h3>Key points</h3><ul>' +
+          msg.key_points.map(p => `<li>${escapeHtml(p)}</li>`).join('') +
+          '</ul>');
+      }
+      if (Array.isArray(msg.action_items) && msg.action_items.length) {
+        parts.push('<h3>Action items</h3><ul>' +
+          msg.action_items.map(p => `<li>${escapeHtml(p)}</li>`).join('') +
+          '</ul>');
+      }
+      body.innerHTML = parts.join('') || '<div class="summary-text">No summary available.</div>';
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function float32ToInt16(float32Array) {
+      const int16 = new Int16Array(float32Array.length);
+      for (let i = 0; i < float32Array.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Array[i]));
+        int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return int16;
+    }
+
+    async function startMicrophone() {
+      audioContext = new AudioContext({ sampleRate: 16000 }); // 16kHz for speech recognition
+      
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000
+        }
+      });
+
+      source = audioContext.createMediaStreamSource(mediaStream);
+      processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+      processor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0);
+        const pcm = float32ToInt16(input);
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(pcm.buffer);
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+    }
+
+    function stopMicrophone() {
+      if (processor) {
+        processor.disconnect();
+        processor = null;
+      }
+      if (source) {
+        source.disconnect();
+        source = null;
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+      }
+    }
+
+    async function startTranscription() {
+      try {
+        updateStatus('Connecting...', false, false);
+        
+        const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const wsHost = window.location.host;
+        socket = new WebSocket(`${wsProtocol}://${wsHost}/recap/ws`);
+        socket.binaryType = "arraybuffer";
+
+        socket.onopen = async () => {
+          console.log("Transcription WebSocket opened");
+          updateStatus('Listening...', true, false);
+
+          await startMicrophone();
+
+          document.getElementById('startTranscriptionBtn').disabled = true;
+          document.getElementById('pauseTranscriptionBtn').disabled = false;
+          document.getElementById('stopTranscriptionBtn').disabled = false;
+          startTimer();
+        };
+
+        socket.onmessage = (event) => {
+          if (typeof event.data === "string") {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === 'partial') {
+              addTranscriptEntry(msg.text, false, msg.speaker || 'Unknown');
+            } else if (msg.type === 'final') {
+              // Append a tentative entry; the LLM-diarized 'dialogue' message
+              // will replace these with properly split per-speaker turns once
+              // it arrives.
+              addTranscriptEntry(msg.text, true, msg.speaker || 'Unknown');
+            } else if (msg.type === 'dialogue' || msg.type === 'persona') {
+              handleDialogueUpdate(msg);
+            } else if (msg.type === 'recap_note') {
+              renderRecapNote(msg);
+            } else if (msg.type === 'summary') {
+              renderSummary(msg);
+            } else if (msg.type === 'saved') {
+              // Transcript is persisted server-side; we intentionally do not
+              // surface the raw blob URL in the clinician UI.
+            } else if (msg.type === 'error') {
+              console.error("Transcription error:", msg.message);
+              updateStatus(`Error: ${msg.message}`, false, true);
+              if (msg.stage === 'summary') {
+                // Replace the loading spinner with an inline error so the
+                // user knows generation failed instead of waiting forever.
+                const panel = document.getElementById('summaryPanel');
+                const body = document.getElementById('summaryBody');
+                panel.style.display = '';
+                panel.classList.remove('loading');
+                body.innerHTML = `<div class="summary-text" style="color:#ff8a80;">${escapeHtml(msg.message || 'Failed to generate clinical note.')}</div>`;
+              }
+            }
+          }
+        };
+
+        socket.onclose = () => {
+          console.log("Transcription WebSocket closed");
+          stopMicrophone();
+          stopTimer();
+          if (!isPaused) updateStatus('Disconnected', false, false);
+
+          document.getElementById('startTranscriptionBtn').disabled = false;
+          document.getElementById('pauseTranscriptionBtn').disabled = true;
+          document.getElementById('pauseLabel').textContent = 'Pause';
+          document.getElementById('stopTranscriptionBtn').disabled = true;
+          isPaused = false;
+
+          // Clear partial element
+          if (partialElement) {
+            partialElement.remove();
+            partialElement = null;
+          }
+        };
+
+        socket.onerror = (error) => {
+          console.error("WebSocket error:", error);
+          updateStatus('Connection error', false, true);
+        };
+
+      } catch (error) {
+        console.error("Failed to start transcription:", error);
+        updateStatus(`Error: ${error.message}`, false, true);
+      }
+    }
+
+    function stopTranscription() {
+      // Stop sending audio immediately so the server stops accumulating it.
+      stopMicrophone();
+      stopTimer();
+      document.getElementById('stopTranscriptionBtn').disabled = true;
+      document.getElementById('pauseTranscriptionBtn').disabled = true;
+      updateStatus('Generating clinical note\u2026', false, false);
+      showSummaryLoading();
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        try {
+          socket.send(JSON.stringify({ type: 'stop' }));
+        } catch (e) {
+          console.warn('Failed to send stop signal', e);
+        }
+        // The server will send the summary then close the socket; the
+        // existing onclose handler will reset UI state.
+      } else if (socket) {
+        socket.close();
+        socket = null;
+      } else {
+        updateStatus('Ready to start', false, false);
+      }
+    }
+
+    // ----- Pause / Resume -----
+    let isPaused = false;
+    function togglePause() {
+      if (!mediaStream) return;
+      isPaused = !isPaused;
+      mediaStream.getAudioTracks().forEach(t => { t.enabled = !isPaused; });
+      document.getElementById('pauseLabel').textContent = isPaused ? 'Resume' : 'Pause';
+      if (isPaused) {
+        stopTimer();
+        updateStatus('Paused', false, false);
+      } else {
+        startTimer();
+        updateStatus('Listening...', true, false);
+      }
+    }
+
+    // ----- Elapsed timer -----
+    let elapsedSeconds = 0;
+    let timerInterval = null;
+    function startTimer() {
+      if (timerInterval) return;
+      const el = document.getElementById('elapsedTime');
+      el.textContent = formatElapsed(elapsedSeconds);
+      timerInterval = setInterval(() => {
+        elapsedSeconds += 1;
+        el.textContent = formatElapsed(elapsedSeconds);
+      }, 1000);
+    }
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+    function resetTimer() {
+      stopTimer();
+      elapsedSeconds = 0;
+      document.getElementById('elapsedTime').textContent = '';
+    }
+    function formatElapsed(s) {
+      const m = Math.floor(s / 60).toString().padStart(2, '0');
+      const sec = (s % 60).toString().padStart(2, '0');
+      return `${m}:${sec}`;
+    }
+
+    // ----- SOAP note rendering -----
+    const SOAP_ORDER = [
+      ['chief_complaint', 'Chief complaint'],
+      ['subjective', 'Subjective (S)'],
+      ['objective', 'Objective (O)'],
+      ['assessment', 'Assessment (A)'],
+      ['plan', 'Plan (P)'],
+    ];
+    let lastNoteSections = {};
+
+    function renderRecapNote(msg) {
+      const panel = document.getElementById('summaryPanel');
+      const heading = document.getElementById('summaryHeading');
+      const body = document.getElementById('summaryBody');
+      panel.style.display = '';
+      panel.classList.remove('loading');
+      heading.textContent = 'Clinical Note (Draft)';
+      lastNoteSections = (msg && msg.sections) || {};
+
+      const parts = [];
+      parts.push('<div class="note-banner">Draft generated by AI. Review before clinical use.</div>');
+      parts.push('<div class="note-actions">' +
+        '<button onclick="copyNote()">Copy as Markdown</button>' +
+        '<button onclick="downloadNote()">Download .md</button>' +
+        '</div>');
+
+      for (const [key, label] of SOAP_ORDER) {
+        const section = lastNoteSections[key] || { text: '*Not generated.*', confidence: 'low' };
+        const conf = (section.confidence || 'low').toLowerCase();
+        const html = renderSectionMarkdown(section.text || '');
+        parts.push(`
+          <div class="soap-section" data-section="${key}">
+            <div class="section-head">
+              <div class="left">
+                <h3>${escapeHtml(label)}</h3>
+                <span class="conf-chip ${conf}">${escapeHtml(conf)}</span>
+              </div>
+              <div class="section-actions">
+                <button onclick="toggleSectionEdit('${key}', this)">Edit</button>
+                <button onclick="regenerateSection('${key}', this)">Regenerate</button>
+              </div>
+            </div>
+            <div class="section-body" data-section-body="${key}">${html}</div>
+          </div>
+        `);
+      }
+      body.innerHTML = parts.join('');
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function renderSectionMarkdown(text) {
+      // Lightweight markdown: bullet lists, bold, line breaks. Keeps the page
+      // dependency-free.
+      const escaped = escapeHtml(text || '');
+      const lines = escaped.split(/\r?\n/);
+      const out = [];
+      let inList = false;
+      for (const raw of lines) {
+        const line = raw.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/(^|\s)\*(?!\s)([^*]+?)\*(?!\w)/g, '$1<em>$2</em>');
+        const bulletMatch = line.match(/^\s*[-*]\s+(.*)$/);
+        const numberedMatch = line.match(/^\s*(\d+)\.\s+(.*)$/);
+        if (bulletMatch || numberedMatch) {
+          if (!inList) { out.push('<ul>'); inList = true; }
+          out.push(`<li>${bulletMatch ? bulletMatch[1] : numberedMatch[2]}</li>`);
+        } else {
+          if (inList) { out.push('</ul>'); inList = false; }
+          if (line.trim() === '') out.push('<br>');
+          else out.push(`<div>${line}</div>`);
+        }
+      }
+      if (inList) out.push('</ul>');
+      return out.join('');
+    }
+
+    function toggleSectionEdit(key, btn) {
+      const body = document.querySelector(`[data-section-body="${key}"]`);
+      if (!body) return;
+      const editing = body.getAttribute('contenteditable') === 'true';
+      if (editing) {
+        body.setAttribute('contenteditable', 'false');
+        btn.textContent = 'Edit';
+        // Persist plain-text version to lastNoteSections so copy/download reflects edits.
+        const text = body.innerText.trim();
+        if (lastNoteSections[key]) lastNoteSections[key].text = text;
+      } else {
+        body.setAttribute('contenteditable', 'true');
+        btn.textContent = 'Save';
+        body.focus();
+      }
+    }
+
+    async function regenerateSection(key, btn) {
+      const body = document.querySelector(`[data-section-body="${key}"]`);
+      if (!body) return;
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Regenerating\u2026';
+      try {
+        const resp = await fetch('/recap/api/regenerate-section', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ section: key }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        body.innerHTML = renderSectionMarkdown(data.text || '');
+        // Update confidence chip.
+        const chip = body.parentElement.querySelector('.conf-chip');
+        if (chip) {
+          chip.className = `conf-chip ${data.confidence || 'low'}`;
+          chip.textContent = data.confidence || 'low';
+        }
+        if (lastNoteSections[key]) {
+          lastNoteSections[key].text = data.text || '';
+          lastNoteSections[key].confidence = data.confidence || 'low';
+        } else {
+          lastNoteSections[key] = { text: data.text || '', confidence: data.confidence || 'low' };
+        }
+      } catch (e) {
+        alert(`Regenerate failed: ${e.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    }
+
+    function buildNoteMarkdown() {
+      const parts = ['# Clinical Note (Draft)\n', '_Generated by Recap. Review before clinical use._\n'];
+      for (const [key, label] of SOAP_ORDER) {
+        const section = lastNoteSections[key] || { text: '_Not generated._', confidence: 'low' };
+        parts.push(`\n## ${label}  \n_Confidence: ${section.confidence || 'low'}_\n\n${section.text || ''}\n`);
+      }
+      return parts.join('');
+    }
+
+    function copyNote() {
+      const md = buildNoteMarkdown();
+      navigator.clipboard.writeText(md).then(
+        () => updateStatus('Note copied to clipboard', false, false),
+        () => alert('Copy failed; please select the note manually.')
+      );
+    }
+
+    function downloadNote() {
+      const md = buildNoteMarkdown();
+      const blob = new Blob([md], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      a.href = url;
+      a.download = `recap-note-${ts}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

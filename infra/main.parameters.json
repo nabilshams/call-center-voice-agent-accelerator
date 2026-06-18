@@ -13,6 +13,15 @@
       },
       "appExists": {
         "value": "${SERVICE_APP_RESOURCE_EXISTS=false}"
+      },
+      "travelOrchestratorMode": {
+        "value": "${TRAVEL_ORCHESTRATOR_MODE=maf-local}"
+      },
+      "mafProjectName": {
+        "value": "${MAF_PROJECT_NAME=TravelAgency}"
+      },
+      "mafModel": {
+        "value": "${MAF_MODEL=gpt-4o-mini}"
       }
     }
   }

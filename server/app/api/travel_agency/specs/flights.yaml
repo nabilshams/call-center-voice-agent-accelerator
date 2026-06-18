@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - Flights API
+  version: 1.0.0
+  description: >-
+    Search flights, inspect fare rules, and create flight bookings.
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files. There is no real backend, GDS, or database. Bookings live only
+    for the lifetime of the server process.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/flights
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/flights
+    description: Local development
+paths:
+  /search:
+    get:
+      operationId: search_flights
+      summary: Search available flights
+      description: >-
+        Search the flight catalogue by route and date. All filters are optional
+        and matched case-insensitively; origin/destination accept either an
+        airport code (AKL) or a city name (Auckland). Returns matching flights
+        with prices in NZD.
+      parameters:
+        - { name: origin, in: query, schema: { type: string, example: AKL }, description: "Origin airport code or city, e.g. AKL or Auckland" }
+        - { name: destination, in: query, schema: { type: string, example: Sydney }, description: "Destination airport code or city, e.g. SYD or Sydney" }
+        - { name: departure_date, in: query, schema: { type: string, format: date, example: "2026-06-19" }, description: "Departure date in YYYY-MM-DD" }
+        - { name: cabin_class, in: query, schema: { type: string, enum: [economy, premium_economy, business, first], example: economy } }
+      responses:
+        "200":
+          description: Matching flights
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer, example: 2 }
+                  flights:
+                    type: array
+                    items: { $ref: "#/components/schemas/Flight" }
+  /{flight_id}:
+    get:
+      operationId: get_flight_details
+      summary: Get full flight details
+      description: Retrieve the complete record for a single flight, including times, baggage allowance, seats available, and fare rules. Use after search_flights when the customer picks a flight.
+      parameters:
+        - { name: flight_id, in: path, required: true, schema: { type: string, example: FL-AKLSYD-001 } }
+      responses:
+        "200":
+          description: Flight details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Flight" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{flight_id}/fare-rules:
+    get:
+      operationId: get_fare_rules
+      summary: Get fare rules for a flight
+      description: Returns the change/cancellation rules and fees for a flight's fare. Use when a customer asks whether a fare is changeable or refundable.
+      parameters:
+        - { name: flight_id, in: path, required: true, schema: { type: string, example: FL-AKLSYD-001 } }
+      responses:
+        "200":
+          description: Fare rules
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flight_id: { type: string }
+                  cabin_class: { type: string }
+                  fare_rules: { $ref: "#/components/schemas/FareRules" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /bookings:
+    post:
+      operationId: create_booking
+      summary: Create a flight booking
+      description: >-
+        Create a flight booking for one or more flights and passengers. Returns
+        a generated Wanderlux reference (HOT-######) and a confirmed
+        booking with the total price in NZD. DEMO ONLY - stored in memory.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBookingRequest" }
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: boolean }
+                  booking: { $ref: "#/components/schemas/Booking" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: flight_not_found }
+        message: { type: string }
+    FareRules:
+      type: object
+      properties:
+        changeable: { type: boolean }
+        change_fee_nzd: { type: number, format: float }
+        refundable: { type: boolean }
+        cancellation_fee_nzd: { type: number, format: float }
+    Flight:
+      type: object
+      properties:
+        flight_id: { type: string, example: FL-AKLSYD-001 }
+        airline: { type: string, example: "Air New Zealand" }
+        flight_number: { type: string, example: NZ101 }
+        origin: { type: string, example: AKL }
+        origin_city: { type: string, example: Auckland }
+        destination: { type: string, example: SYD }
+        destination_city: { type: string, example: Sydney }
+        departure_date: { type: string, format: date, example: "2026-06-19" }
+        departure_time: { type: string, example: "07:30" }
+        arrival_time: { type: string, example: "09:15" }
+        duration_minutes: { type: integer, example: 225 }
+        stops: { type: integer, example: 0 }
+        cabin_class: { type: string, example: economy }
+        price_nzd: { type: number, format: float, example: 389.0 }
+        baggage_allowance_kg: { type: integer, example: 23 }
+        seats_available: { type: integer, example: 14 }
+        fare_rules: { $ref: "#/components/schemas/FareRules" }
+    Passenger:
+      type: object
+      properties:
+        first_name: { type: string, example: Jane }
+        last_name: { type: string, example: Thompson }
+    ContactDetails:
+      type: object
+      properties:
+        email: { type: string, format: email, example: jane.thompson@example.com }
+        phone: { type: string, example: "+64 21 555 0100" }
+    CreateBookingRequest:
+      type: object
+      required: [flight_ids, passenger_details]
+      properties:
+        flight_ids: { type: array, items: { type: string }, example: ["FL-AKLSYD-001"] }
+        passenger_details: { type: array, items: { $ref: "#/components/schemas/Passenger" } }
+        contact_details: { $ref: "#/components/schemas/ContactDetails" }
+    Booking:
+      type: object
+      properties:
+        booking_reference: { type: string, example: HOT-847291 }
+        last_name: { type: string, example: Siddiqui }
+        email: { type: string, format: email }
+        lead_passenger: { type: string }
+        passengers: { type: integer, example: 1 }
+        type: { type: string, example: flight }
+        itinerary: { type: string }
+        airline: { type: string, nullable: true }
+        flight_number: { type: string, nullable: true }
+        cabin_class: { type: string, nullable: true }
+        departure_date: { type: string, format: date, nullable: true }
+        return_date: { type: string, format: date, nullable: true }
+        destination: { type: string }
+        total_nzd: { type: number, format: float, example: 1388.0 }
+        insurance: { type: string, nullable: true }
+        status: { type: string, example: confirmed }

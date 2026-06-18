@@ -1,0 +1,47 @@
+{
+  "faqs": [
+    {
+      "question": "What payment options are available?",
+      "keywords": ["payment", "pay", "finance", "q card", "interest", "instalment", "credit"],
+      "answer": "Wanderlux offers interest-free finance through Q Card and Q Mastercard on approved purchases over $499 (in-store only), as well as credit card and bank transfer. Terms and conditions apply."
+    },
+    {
+      "question": "Do you sell gift cards?",
+      "keywords": ["gift card", "voucher", "present"],
+      "answer": "Yes, Wanderlux gift cards are available in a range of denominations and can be redeemed against any booking. You can check your balance in-store or online."
+    },
+    {
+      "question": "Is there a Wanderlux app?",
+      "keywords": ["app", "mobile", "download"],
+      "answer": "Yes, the Wanderlux app lets you browse deals, manage bookings, and set up deal alerts. It is available on the App Store and Google Play."
+    },
+    {
+      "question": "How do I sign up for deal alerts?",
+      "keywords": ["deal alert", "notification", "notify", "alerts"],
+      "answer": "You can sign up for personalised deal alerts on wanderlux.co.nz or through the app by setting your preferred destinations, budget, and travel dates."
+    }
+  ],
+  "payment_options": {
+    "methods": ["Q Card interest-free finance", "Q Mastercard", "Credit card", "Bank transfer"],
+    "q_card_terms": "Interest-free finance on approved purchases over $499, available in-store only. Terms and conditions apply.",
+    "instalments": "Flexible instalment plans available via Q Card on eligible bookings."
+  },
+  "gift_cards": {
+    "denominations_nzd": [50, 100, 250, 500, 1000],
+    "purchase": "Available in-store and online at wanderlux.co.nz.",
+    "terms": "Valid for 12 months from purchase. Redeemable against any Wanderlux booking. Non-refundable."
+  },
+  "app_info": {
+    "features": ["Browse and book deals", "Manage existing bookings", "Set up deal alerts", "Access travel documents"],
+    "download_links": {
+      "ios": "https://apps.apple.com/nz/app/house-of-travel",
+      "android": "https://play.google.com/store/apps/details?id=nz.co.wanderlux"
+    }
+  },
+  "insurance_overview": "Travel insurance typically covers trip cancellation, lost or delayed luggage, medical expenses and emergency evacuation, and travel disruption. Wanderlux offers Essentials, Comprehensive, and Premium tiers. For booking-specific insurance, our post-booking concierge can help.",
+  "travel_advisories": [
+    { "destination": "Japan", "level": "Exercise normal safety precautions", "source": "safetravel.govt.nz" },
+    { "destination": "Fiji", "level": "Exercise normal safety precautions", "source": "safetravel.govt.nz" },
+    { "destination": "Indonesia", "level": "Exercise increased caution", "source": "safetravel.govt.nz" }
+  ]
+}

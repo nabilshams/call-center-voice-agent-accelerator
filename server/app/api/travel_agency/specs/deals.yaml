@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: Wanderlux - Deals & Alerts API
+  version: 1.0.0
+  description: >-
+    Browse current deals, get deal details, and save / retrieve deal-alert
+    preferences.
+
+
+    DEMO surface only: all data is served from an in-memory store seeded from
+    JSON files. Saved preferences live only for the lifetime of the server
+    process.
+servers:
+  - url: https://ca-ccvaa2-imlai.lemonbay-ee18bfbe.eastus2.azurecontainerapps.io/api/travel-agency/deals
+    description: Deployed Azure Container App
+  - url: http://localhost:8000/api/travel-agency/deals
+    description: Local development
+paths:
+  /search:
+    get:
+      operationId: get_matching_deals
+      summary: Get deals matching filters
+      description: Returns current deals filtered by destination, deal type, and maximum per-person budget (NZD). Use to show live deals to a customer.
+      parameters:
+        - { name: destination, in: query, schema: { type: string, example: Bali } }
+        - { name: deal_type, in: query, schema: { type: string, enum: [flight, package, cruise, tour], example: package } }
+        - { name: max_budget, in: query, schema: { type: number, format: float, example: 2000 }, description: "Maximum price per person in NZD" }
+      responses:
+        "200":
+          description: Matching deals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  deals:
+                    type: array
+                    items: { $ref: "#/components/schemas/Deal" }
+  /alerts:
+    post:
+      operationId: save_deal_preferences
+      summary: Save deal alert preferences
+      description: >-
+        Save a customer's deal-alert preferences (destinations, months, budget,
+        deal types, departure airport, notification channel). Returns the saved
+        profile with a generated customer_id. DEMO ONLY - stored in memory.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DealPreferences" }
+      responses:
+        "201":
+          description: Preferences saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved: { type: boolean }
+                  profile: { $ref: "#/components/schemas/DealPreferences" }
+  /alerts/{customer_id}:
+    get:
+      operationId: get_customer_alert_profile
+      summary: Get saved alert profile by customer id or email
+      description: Returns a saved deal-alert profile looked up by customer_id or email address.
+      parameters:
+        - { name: customer_id, in: path, required: true, schema: { type: string, example: CUST-1001 } }
+      responses:
+        "200":
+          description: Alert profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DealPreferences" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /{deal_id}:
+    get:
+      operationId: get_deal_details
+      summary: Get full deal details
+      description: Retrieve the complete record for a single deal, including expiry date and pricing.
+      parameters:
+        - { name: deal_id, in: path, required: true, schema: { type: string, example: DEAL-FIJI-001 } }
+      responses:
+        "200":
+          description: Deal details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deal" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: deal_not_found }
+        message: { type: string }
+    Deal:
+      type: object
+      properties:
+        deal_id: { type: string, example: DEAL-FIJI-001 }
+        name: { type: string }
+        destination: { type: string, example: Fiji }
+        deal_type: { type: string, example: package }
+        price_from_nzd: { type: number, format: float, example: 1899.0 }
+        departure_airport: { type: string, example: AKL }
+        valid_until: { type: string, format: date }
+        description: { type: string }
+        url: { type: string }
+    DealPreferences:
+      type: object
+      properties:
+        customer_id: { type: string, example: CUST-1001 }
+        email: { type: string, format: email, example: demo.customer@example.com }
+        destinations: { type: array, items: { type: string }, example: ["Fiji", "Maldives"] }
+        months: { type: array, items: { type: string }, example: ["June", "July", "August"] }
+        adults: { type: integer, example: 2 }
+        children: { type: integer, example: 0 }
+        max_budget_nzd: { type: number, format: float, example: 3500.0 }
+        deal_types: { type: array, items: { type: string }, example: ["package"] }
+        departure_airport: { type: string, example: AKL }
+        notification_channel: { type: string, enum: [email, sms, both], example: email }

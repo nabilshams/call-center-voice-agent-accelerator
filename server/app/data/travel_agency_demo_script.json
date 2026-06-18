@@ -1,0 +1,61 @@
+{
+  "sections": [
+    {
+      "title": "Journey 1 — Honeymoon planning (Intent Orchestrator, memory)",
+      "note": "Toggle: Intent Orchestrator (single). Persona: newlyweds planning a once-in-a-lifetime trip. Paste the lines in order — watch the agent remember the destination, dates, and budget across turns. Data: hits get_destination_inspiration (Maldives) and search_deals (Maldives) → DEAL-MALDIVES-001 'Maldives Honeymoon Overwater Escape', NZD 3,499pp.",
+      "lines": [
+        "Hi, my partner and I just got married and we'd love to plan our honeymoon.",
+        "We're dreaming of an overwater villa somewhere tropical — the Maldives keeps calling us.",
+        "Let's go with the Maldives. We're thinking five nights in late November, and our total budget is around 8,000 New Zealand dollars for the two of us.",
+        "We'd love a mix of pure relaxation and a bit of snorkeling out on the reef.",
+        "Perfect. Can you find us the best Maldives honeymoon deal that fits everything I've told you?"
+      ]
+    },
+    {
+      "title": "Journey 2 — 25th anniversary cruise (Intent Orchestrator, memory)",
+      "note": "Toggle: Intent Orchestrator (single). Persona: a couple celebrating a milestone. Highlights how the cruise specialist carries forward the region, ship style, and cabin preferences from earlier turns. Data: hits search_cruises (Europe / Danube) → CR-AMA-DANUBE7 '7-Night Romantic Danube River Cruise' on AmaMagna, balcony NZD 5,200.",
+      "lines": [
+        "My wife and I want to celebrate our 25th wedding anniversary with a really special cruise.",
+        "We've always dreamed of cruising through the heart of Europe — somewhere with history and incredible food, like the Danube.",
+        "It's just the two of us. We'd prefer a smaller, intimate luxury ship and a balcony cabin, and we both love history and fine dining.",
+        "Can you recommend a cruise that matches everything — a European river cruise, balcony cabin, with a food and history focus?"
+      ]
+    },
+    {
+      "title": "Journey 3 — Family reunion (Multi-Intent Orchestrator, parallel)",
+      "note": "Toggle: Multi-Intent Orchestrator FIRST. Persona: an organizer juggling a multi-generational trip. One message fans out to several specialists in parallel — flights, a holiday package, and tours — then the responses are merged. Data: search_flights (AKL→SYD) → FL-AKLSYD-001/002/003; search_holiday_packages (Fiji) → Outrigger Fiji (kids club); search_tours (Cultural) → 'Visions of Japan'.",
+      "lines": [
+        "I'm organizing a family reunion for nine of us across three generations this spring.",
+        "I need flights from Auckland to Sydney for four of us, a beach holiday package in Fiji for the whole group, and a guided cultural tour idea the grandparents would love.",
+        "We're flexible on the exact dates, mid-range budget, and the grandparents want something cultural while the kids want the beach and snorkeling."
+      ]
+    },
+    {
+      "title": "Journey 4 — Flexible budget explorer (Multi-Intent Orchestrator, parallel)",
+      "note": "Toggle: Multi-Intent Orchestrator. Persona: a spontaneous traveler who wants ideas, a fare to watch, and a concrete flight — all at once. Shows inspiration + deal alert + flight search running together. Data: get_destination_inspiration (island escapes); create_deal_alert (AKL→Bali); search_flights (AKL→DPS, August) → FL-AKLDPS-001 Emirates EK449.",
+      "lines": [
+        "I've got two weeks off and about 2,500 New Zealand dollars to play with — I'm open to ideas.",
+        "Suggest a few island escapes for that budget, set me a deal alert for flights from Auckland to Bali, and find me a flight from Auckland to Bali in early August.",
+        "I'm travelling solo, I love street food and temples, and I'd rather spend on experiences than fancy hotels."
+      ]
+    },
+    {
+      "title": "Journey 5 — Post-booking rescue (Intent Orchestrator)",
+      "note": "Toggle: Intent Orchestrator. Persona: a traveler whose plans changed. Routes to the post-booking concierge and resolves a real problem end to end. Data: get_booking_by_reference (HOT-847291, Auckland→Tokyo on NZ99) and get_baggage_policy (Air New Zealand economy → 23kg).",
+      "lines": [
+        "My plans have changed and I need to adjust my trip — my booking reference is HOT-847291.",
+        "Can I push my return out by a couple of days, and what would it cost to change the flight?",
+        "And before I confirm, can you tell me the checked baggage allowance on Air New Zealand in economy?"
+      ]
+    },
+    {
+      "title": "Journey 6 — Solo adventure, consultant match (Intent Orchestrator)",
+      "note": "Toggle: Intent Orchestrator. Persona: a traveler with a complex, high-touch trip who wants a human specialist. Demonstrates routing to the consultant-match agent with the trip captured. Data: search_tours (Peru) → TOUR-INTREPID-PERU9 'Inca Trail Express'; find_consultant (Adventure) → Emily Chen (CONS-AKL-001), then book_consultant_appointment.",
+      "lines": [
+        "I'm planning a three-week solo adventure through Peru — the Inca Trail to Machu Picchu — and I'd really like to work with a specialist.",
+        "It's an active trip with multi-day hiking, and I'm hoping to go in September.",
+        "My budget is flexible for the right experience. Can you match me with a consultant who knows adventure travel?"
+      ]
+    }
+  ]
+}

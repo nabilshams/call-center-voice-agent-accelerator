@@ -132,7 +132,7 @@
     }
 
     footer {
-      position: fixed;
+      /*position: fixed;*/
       bottom: 1rem;
       font-size: 0.8rem;
       color: #666;
@@ -267,6 +267,71 @@
     .message.agent .message-label {
       color: #60a5fa;
     }
+
+    .transport-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .transport-toggle .toggle-label {
+      color: #a0a0a0;
+      font-size: 0.85rem;
+      transition: color 0.3s ease;
+    }
+
+    .transport-toggle .toggle-label.active {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      cursor: pointer;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 166, 125, 0.4);
+      border-radius: 12px;
+      transition: background 0.3s ease;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.3s ease;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: rgba(59, 130, 246, 0.6);
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+    }
+
+    .toggle-switch input:disabled + .toggle-slider {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -280,6 +345,15 @@
     ⚠️ This assistant provides guidance only. For urgent medical concerns, contact your GP or call 111.
   </div>
 
+  <div class="transport-toggle">
+    <span class="toggle-label active" id="labelWs">WebSocket</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="transportToggle" />
+      <span class="toggle-slider"></span>
+    </label>
+    <span class="toggle-label" id="labelWebrtc">WebRTC</span>
+  </div>
+
   <div class="controls">
     <button id="startBtn" onclick="startStreaming()" title="Start talking to the support assistant">
       🎙️ Speak to Support Assistant
@@ -287,6 +361,10 @@
     <button id="stopBtn" onclick="stopStreaming()" disabled title="End the conversation">
       End Call
     </button>
+  </div>
+
+  <div class="nav-link">
+    <a href="/travel-support">Open Flight and Hotel Reservations Assistant</a>
   </div>
 
   <div class="info-box">
@@ -391,10 +469,21 @@
       socket.close();
     }
 
+    function getTransportPath() {
+      const isWebRTC = document.getElementById("transportToggle").checked;
+      return isWebRTC ? "/webrtc/ws" : "/web/ws";
+    }
+
+    document.getElementById("transportToggle").addEventListener("change", function() {
+      document.getElementById("labelWs").classList.toggle("active", !this.checked);
+      document.getElementById("labelWebrtc").classList.toggle("active", this.checked);
+    });
+
     function startStreaming() {
       let wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-      let wsHost = window.location.host; 
-      socket = new WebSocket(`${wsProtocol}://${wsHost}/web/ws`);
+      let wsHost = window.location.host;
+      let wsPath = getTransportPath();
+      socket = new WebSocket(`${wsProtocol}://${wsHost}${wsPath}`);
       socket.binaryType = "arraybuffer";
 
       socket.onopen = async () => {
@@ -403,6 +492,7 @@
         await startMicrophone();
         document.getElementById("startBtn").disabled = true;
         document.getElementById("stopBtn").disabled = false;
+        document.getElementById("transportToggle").disabled = true;
       };
 
       socket.onmessage = async (event) => {
@@ -439,6 +529,7 @@
         stopMicrophone();
         document.getElementById("startBtn").disabled = false;
         document.getElementById("stopBtn").disabled = true;
+        document.getElementById("transportToggle").disabled = false;
       };
 
       socket.onerror = (err) => console.error("WebSocket error", err);

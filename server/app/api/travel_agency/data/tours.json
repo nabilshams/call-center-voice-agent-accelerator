@@ -1,0 +1,120 @@
+{
+  "operators": [
+    {
+      "operator_name": "Contiki",
+      "style": "Social",
+      "age_range": "18-35",
+      "typical_group_size": 40,
+      "overview": "Social group tours for young travellers across Europe and Asia."
+    },
+    {
+      "operator_name": "Topdeck",
+      "style": "Social",
+      "age_range": "18-35",
+      "typical_group_size": 35,
+      "overview": "Youthful, social travel with a focus on Europe and adventure."
+    },
+    {
+      "operator_name": "G Adventures",
+      "style": "Adventure",
+      "age_range": "18-70",
+      "typical_group_size": 16,
+      "overview": "Active, responsible small-group adventures with local leaders."
+    },
+    {
+      "operator_name": "Intrepid Travel",
+      "style": "Adventure",
+      "age_range": "18-70",
+      "typical_group_size": 12,
+      "overview": "Off-the-beaten-track, sustainable small-group travel."
+    },
+    {
+      "operator_name": "Globus",
+      "style": "Comfort",
+      "age_range": "40+",
+      "typical_group_size": 40,
+      "overview": "Comfort, well-paced fully guided touring with premium hotels."
+    },
+    {
+      "operator_name": "Trafalgar",
+      "style": "Comfort",
+      "age_range": "40+",
+      "typical_group_size": 40,
+      "overview": "Guided comfort touring with cultural insider experiences."
+    }
+  ],
+  "tours": [
+    {
+      "tour_id": "TOUR-GADV-JAPAN11",
+      "operator_name": "G Adventures",
+      "name": "Visions of Japan",
+      "region": "Asia",
+      "country": "Japan",
+      "style": "Cultural",
+      "duration_days": 11,
+      "price_from_nzd": 2890.0,
+      "fitness_level": "moderate",
+      "max_group_size": 16,
+      "departure_months": ["March", "April", "September", "October"],
+      "highlights": ["Tokyo", "Kyoto", "Hiroshima", "Osaka", "Local leader throughout"],
+      "accommodation_level": "Comfortable 3-star hotels and ryokan",
+      "why_it_suits": "Perfect for solo cultural travellers who want an easy way to connect with like-minded people.",
+      "solo_supplement_nzd": 0.0,
+      "solo_supplement_waiver": true
+    },
+    {
+      "tour_id": "TOUR-GLOBUS-JAPAN12",
+      "operator_name": "Globus",
+      "name": "Land of the Samurai",
+      "region": "Asia",
+      "country": "Japan",
+      "style": "Comfort",
+      "duration_days": 12,
+      "price_from_nzd": 3650.0,
+      "fitness_level": "easy",
+      "max_group_size": 40,
+      "departure_months": ["April", "May", "October"],
+      "highlights": ["Premium hotels", "Expert local guides", "Mount Fuji", "Bullet train experience"],
+      "accommodation_level": "Premium 4 to 5-star hotels",
+      "why_it_suits": "A deeper, more curated cultural experience with less logistics to manage.",
+      "solo_supplement_nzd": 980.0,
+      "solo_supplement_waiver": false
+    },
+    {
+      "tour_id": "TOUR-CONTIKI-EUR14",
+      "operator_name": "Contiki",
+      "name": "European Discovery",
+      "region": "Europe",
+      "country": "Multiple",
+      "style": "Social",
+      "duration_days": 14,
+      "price_from_nzd": 3120.0,
+      "fitness_level": "moderate",
+      "max_group_size": 50,
+      "departure_months": ["May", "June", "July", "August", "September"],
+      "highlights": ["Paris", "Rome", "Venice", "Swiss Alps", "Amsterdam"],
+      "accommodation_level": "Comfortable central hotels",
+      "why_it_suits": "Ideal for young social travellers wanting to see the highlights of Europe with new friends.",
+      "solo_supplement_nzd": 650.0,
+      "solo_supplement_waiver": false
+    },
+    {
+      "tour_id": "TOUR-INTREPID-PERU9",
+      "operator_name": "Intrepid Travel",
+      "name": "Inca Trail Express",
+      "region": "Americas",
+      "country": "Peru",
+      "style": "Adventure",
+      "duration_days": 9,
+      "price_from_nzd": 2450.0,
+      "fitness_level": "challenging",
+      "max_group_size": 12,
+      "departure_months": ["April", "May", "June", "July", "August", "September"],
+      "highlights": ["Machu Picchu", "Sacred Valley", "Cusco", "Inca Trail trek"],
+      "accommodation_level": "Mix of hotels and trek camping",
+      "why_it_suits": "Built for active adventurers chasing a bucket-list trek with a sustainable small group.",
+      "solo_supplement_nzd": 420.0,
+      "solo_supplement_waiver": false
+    }
+  ]
+}
