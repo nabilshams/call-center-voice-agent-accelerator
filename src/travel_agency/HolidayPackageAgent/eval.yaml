@@ -1,0 +1,21 @@
+# Local eval intent for HolidayPackageAgent (prompt agent).
+
+name: holiday-package-smoke
+
+agent:
+  name: HolidayPackageAgent
+  kind: prompt
+
+dataset:
+  local_uri: dataset.jsonl
+
+evaluators:
+  - relevance
+  - task_adherence
+  - intent_resolution
+  - indirect_attack
+  - name: behavioral_adherence
+    local_uri: ../_shared/evaluators/behavioral_adherence.yaml
+
+options:
+  eval_model: ${MAF_MODEL}

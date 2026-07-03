@@ -90,21 +90,17 @@ To test Azure Communication Services (ACS) locally, we’ll expose the local ser
 
 ## 3. Travel Orchestrator (Foundry / Microsoft Agent Framework + Local Fallback)
 
-The travel support app can orchestrate requests through either Azure AI Foundry workflows or Microsoft Agent Framework workflows, while keeping a local orchestrator fallback for resiliency.
+The travel support app can orchestrate requests either by calling the workflow defined in Azure AI Foundry via its endpoint (`foundry`), or by running an in-process Microsoft Agent Framework orchestrator that calls the agents defined in Azure AI Foundry (`maf`).
 
 ### Configuration
 
 Set these values in `.env`:
 
-- `TRAVEL_ORCHESTRATOR_MODE=foundry|local`
+- `TRAVEL_ORCHESTRATOR_MODE=foundry|maf`
 - `FOUNDRY_WORKFLOW_ENDPOINT=https://<your-project>.services.ai.azure.com`
 - `FOUNDRY_WORKFLOW_PATH=api/agents/<workflow-or-agent-name>:invoke`
 - `FOUNDRY_API_KEY=<optional-if-not-using-managed-identity>`
 - `FOUNDRY_WORKFLOW_TIMEOUT_SECONDS=25`
-- `MAF_WORKFLOW_ENDPOINT=https://<your-project>.services.ai.azure.com`
-- `MAF_WORKFLOW_PATH=api/agents/<maf-workflow-or-agent-name>:invoke`
-- `MAF_API_KEY=<optional-if-not-using-managed-identity>`
-- `MAF_WORKFLOW_TIMEOUT_SECONDS=25`
 - `MAF_NATIVE_SDK_ENABLED=true`
 - `MAF_PROJECT_ENDPOINT=https://<your-foundry-service>.services.ai.azure.com/api/projects/<project-name>`
 - `MAF_MODEL=gpt-4o-mini`
@@ -113,20 +109,17 @@ Use one mode value for interchangeable runtime switching:
 
 - `TRAVEL_ORCHESTRATOR_MODE=foundry`
 - `TRAVEL_ORCHESTRATOR_MODE=maf`
-- `TRAVEL_ORCHESTRATOR_MODE=maf-local`
-- `TRAVEL_ORCHESTRATOR_MODE=local`
 
 ### Behavior
 
-- `foundry` mode: server calls Foundry workflow first, then falls back to local orchestrator if Foundry is unavailable.
-- `maf` mode: server calls Microsoft Agent Framework workflow first, then falls back to local orchestrator if MAF is unavailable.
-- `maf-local` mode: server uses Native MAF SDK agents in-process (`OrchestratorAgent -> If/Else -> SpecialistAgent`) with deterministic fallback if SDK/config is unavailable.
-- `local` mode: server uses only local orchestrator.
+- `foundry` mode: server calls the workflow defined in Azure AI Foundry via its endpoint (`FOUNDRY_WORKFLOW_ENDPOINT` + `FOUNDRY_WORKFLOW_PATH`). If it is not configured or the call fails, the request returns an error (no silent fallback).
+- `maf` mode: server runs the in-process MAF orchestrator and invokes the prompt agents defined in Azure AI Foundry. Routing (`OrchestratorAgent`, `Multi-IntentOrchestrator`) and every specialist (e.g. `FlightBookingAgent`) are Foundry **prompt agents**, bound by name to their latest published version, so their instructions/tools/behavior come from Foundry. There is no code-defined fallback: a misconfigured/unreachable Foundry agent fails loudly (HTTP 502) so the problem is visible.
 
 ### Native MAF SDK Notes
 
-- Native local mode uses the Python `agent-framework` package and `FoundryChatClient`.
-- If `agent-framework` is not installed or Native MAF configuration is incomplete, `maf-local` transparently falls back to deterministic branch routing to preserve availability.
+- `maf` mode uses the Python `agent-framework` package and `agent_framework.foundry.FoundryAgent` to call Azure AI Foundry **prompt agents**. (Prompt agents are the new Foundry agent type and are not returned by the classic `AgentsClient.list_agents()` data plane.)
+- Agents (routers and specialists) are resolved by name against the Foundry project at `MAF_PROJECT_ENDPOINT`; create them in Foundry so changes there are observed here automatically.
+- Every agent the orchestrator references must exist in Foundry. There is no code-defined fallback: if an agent is missing, or `agent-framework`/Native MAF configuration is incomplete, the request fails loudly (HTTP 502) instead of degrading.
 
 The API endpoint is:
 
@@ -150,7 +143,7 @@ Response includes:
 - `selected_agents`
 - `confidence`
 - `next_step`
-- `orchestrator_mode` (`foundry`, `maf`, `maf-local`, `local`, or `local-fallback`)
+- `orchestrator_mode` (`foundry` or `maf`)
 
 ### Quick Local Test
 

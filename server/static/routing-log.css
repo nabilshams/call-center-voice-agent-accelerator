@@ -1,0 +1,276 @@
+/*
+ * Shared routing-log styles for the travel assistant pages.
+ * --------------------------------------------------------------------------
+ * Used by both travel-chat.html and travel-support.html. Colors come from the
+ * active theme (theme-*.css) via custom properties — no hardcoded brand colors.
+ */
+
+.orch-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.orch-log-head strong {
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
+#orchClearLog {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+#orchClearLog:hover {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  border-color: var(--brand);
+}
+
+.orch-log {
+  height: 320px;
+  min-height: 140px;
+  max-height: 70vh;
+  overflow-y: auto;
+  resize: vertical;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+/* Visible cue that the log can be dragged taller/shorter */
+.orch-resize-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--placeholder);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+.orch-resize-hint::before,
+.orch-resize-hint::after {
+  content: "";
+  height: 1px;
+  flex: 1 1 auto;
+  background: var(--card-border);
+}
+
+.orchestration-panel strong {
+  color: var(--ink);
+}
+
+.orch-empty {
+  color: var(--placeholder);
+  font-style: italic;
+  padding: 0.8rem;
+}
+
+/* Routing log entry (native <details> disclosure) */
+.route-entry {
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+  animation: routing-log-fade-in 200ms ease;
+}
+
+.route-entry-head {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.route-entry-head::-webkit-details-marker {
+  display: none;
+}
+
+.route-entry-head::before {
+  content: "\25B8";
+  color: var(--brand);
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+.route-entry[open] > .route-entry-head::before {
+  transform: rotate(90deg);
+}
+
+.route-entry-head:hover {
+  background: var(--brand-soft);
+}
+
+.route-time {
+  color: var(--placeholder);
+  font-weight: 600;
+  font-size: 0.72rem;
+  flex: 0 0 auto;
+}
+
+.route-head-agent {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+
+.route-entry-body {
+  padding: 0.4rem 0.7rem 0.6rem;
+  border-top: 1px solid var(--card-border);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Tree structure with connector guides */
+.route-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.route-children {
+  margin: 0.15rem 0 0 0.3rem;
+  padding-left: 0.7rem;
+  border-left: 1px solid var(--brand-border);
+}
+
+.route-node {
+  position: relative;
+  padding: 0.15rem 0;
+  font-size: 0.76rem;
+}
+
+.route-children .route-node::before {
+  content: "";
+  position: absolute;
+  left: -0.7rem;
+  top: 0.7rem;
+  width: 0.55rem;
+  height: 1px;
+  background: var(--brand-border);
+}
+
+.route-label {
+  font-weight: 700;
+  color: var(--brand-dark);
+  font-size: 0.78rem;
+}
+
+.route-conf {
+  display: inline-block;
+  font-size: 0.67rem;
+  font-weight: 700;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-radius: 999px;
+  padding: 0.02rem 0.4rem;
+}
+
+.route-key {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.route-text {
+  margin-top: 0.1rem;
+  color: var(--ink);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.route-reply .route-text {
+  font-style: italic;
+}
+
+.route-meta-leaf {
+  color: var(--muted);
+}
+
+.route-meta-leaf code,
+.route-node code {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  border-radius: 4px;
+  padding: 0.02rem 0.3rem;
+  font-size: 0.72rem;
+}
+
+.route-request {
+  margin-bottom: 0.2rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px dashed var(--card-border);
+}
+
+.route-message {
+  font-style: italic;
+  color: var(--ink);
+  margin-top: 0.1rem;
+}
+
+.route-memory {
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--brand);
+}
+
+.route-memory .route-key {
+  color: var(--brand);
+}
+
+.route-missing {
+  color: var(--warning);
+}
+
+.route-ok {
+  color: #1a7f37;
+  font-weight: 600;
+}
+
+.route-error {
+  color: var(--danger, #c0392b);
+  font-weight: 600;
+}
+
+.route-failed {
+  color: var(--danger, #c0392b);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.route-clar {
+  color: var(--brand-dark);
+}
+
+.route-muted {
+  color: var(--placeholder);
+  font-style: italic;
+}
+
+@keyframes routing-log-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

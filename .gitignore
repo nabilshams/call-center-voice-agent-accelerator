@@ -1,5 +1,11 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+
+# Local cache written by the Microsoft Foundry observe skill / azd ai
+# agent eval — generated suites, downloaded datasets, evaluator JSON,
+# batch-eval results. Never commit; regenerable from the source-controlled
+# eval.yaml + dataset.jsonl + evaluator YAMLs alongside each agent.
+.foundry/
 *.py[cod]
 *$py.class
 

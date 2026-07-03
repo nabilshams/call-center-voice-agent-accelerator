@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="/static/theme-wanderlux.css" />
   <!-- Structure (layout/components) — theme-agnostic -->
   <link rel="stylesheet" href="/static/travel-support.css" />
+  <!-- Shared routing-log styles (used by chat + voice pages) -->
+  <link rel="stylesheet" href="/static/routing-log.css" />
 </head>
 <body>
   <main class="shell">
@@ -117,11 +119,12 @@
     </footer>
   </section>
 
+  <!-- Shared routing-log renderer (used by chat + voice pages) -->
+  <script src="/static/routing-log.js"></script>
   <script>
     let mediaStream, source, processor, socket;
     let audioContext = new AudioContext({ sampleRate: 24000 });
     let workletNode;
-    let lastOrchestratedText = '';
     // Accumulated dialogue turns ({role, text}) for memory-aware orchestrator routing.
     let conversationHistory = [];
 
@@ -192,40 +195,6 @@
       if (socket) socket.close();
     }
 
-    async function callTravelOrchestrator(userText) {
-      if (!userText || !userText.trim()) return;
-      if (userText === lastOrchestratedText) return;
-      lastOrchestratedText = userText;
-
-      try {
-        const response = await fetch('/travel/orchestrate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: userText,
-            context: {
-              channel: 'voice-web',
-              source: 'travel-support-ui',
-              timestamp: new Date().toISOString(),
-              // Prior turns (excluding the current one) so routing is memory-aware.
-              history: conversationHistory.slice(0, -1).slice(-12),
-            },
-          }),
-        });
-
-        if (!response.ok) {
-          const details = await response.text();
-          console.warn('Orchestrator request failed', response.status, details);
-          return;
-        }
-
-        const data = await response.json();
-        renderOrchestrationDetails(data, userText, conversationHistory.slice(0, -1).slice(-12).length);
-      } catch (error) {
-        console.warn('Orchestrator call error', error);
-      }
-    }
-
     function escapeHtml(value) {
       return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -234,126 +203,65 @@
         .replace(/"/g, '&quot;');
     }
 
-    function buildRoutingTree(data, userText, memoryTurns) {
-      const trace = Array.isArray(data.workflow_trace) ? data.workflow_trace : [];
-      const outputs = Array.isArray(data.specialist_outputs) ? data.specialist_outputs : [];
-      const outputByAgent = {};
-      outputs.forEach((o) => {
-        if (o && o.agent) outputByAgent[o.agent] = o;
-      });
-
-      const orchestrator = trace[0] || { node: 'Orchestrator' };
-      const specialists = trace.slice(1);
-
-      const conf = (c) =>
-        typeof c === 'number' ? `<span class="route-conf">${c.toFixed(2)}</span>` : '';
-
-      // Child list that hangs under a node.
-      const sub = (rows) =>
-        rows.length ? `<ul class="route-tree route-children">${rows.join('')}</ul>` : '';
-
-      const metaLeaf = (label, value, cls = '') =>
-        `<li class="route-node route-meta-leaf ${cls}"><span class="route-key">${escapeHtml(label)}:</span> ${value}</li>`;
-
-      const textLeaf = (label, value, cls = '') =>
-        `<li class="route-node route-meta-leaf ${cls}">` +
-        `<span class="route-key">${escapeHtml(label)}:</span>` +
-        `<div class="route-text">${escapeHtml(value)}</div></li>`;
-
-      // --- Orchestrator children: route info + rationale ---
-      const orchRows = [];
-      if (orchestrator.route) orchRows.push(metaLeaf('route', `<code>${escapeHtml(orchestrator.route)}</code>`));
-      if (Array.isArray(orchestrator.routes)) orchRows.push(metaLeaf('routes', `<code>${escapeHtml(orchestrator.routes.join(' + '))}</code>`));
-      if (typeof orchestrator.parallel_agents === 'number') orchRows.push(metaLeaf('parallel', String(orchestrator.parallel_agents)));
-      if (orchestrator.rationale) orchRows.push(textLeaf('why', orchestrator.rationale, 'route-rationale'));
-
-      // --- Specialist agents (each with summary + missing fields) ---
-      specialists.forEach((s) => {
-        const out = outputByAgent[s.node] || {};
-        const missing = Array.isArray(out.missing_fields) ? out.missing_fields : [];
-        const agentChildren = [];
-        if (out.summary) agentChildren.push(textLeaf('summary', out.summary));
-        if (missing.length) agentChildren.push(metaLeaf('missing', escapeHtml(missing.join(', ')), 'route-missing'));
-        orchRows.push(
-          `<li class="route-node">` +
-          `<span class="route-label">${escapeHtml(s.node)}</span> ${conf(s.confidence)}` +
-          sub(agentChildren) +
-          `</li>`
-        );
-      });
-      if (!specialists.length) {
-        orchRows.push(`<li class="route-node"><span class="route-muted">no specialist routed</span></li>`);
-      }
-
-      // --- Top-level tree ---
-      const rows = [];
-      if (userText) {
-        const memoryLeaf = memoryTurns
-          ? `<div class="route-meta-leaf route-memory"><span class="route-key">context:</span> ${memoryTurns} prior turn${memoryTurns === 1 ? '' : 's'} remembered</div>`
-          : '';
-        rows.push(
-          `<li class="route-node route-request">` +
-          `<span class="route-label">Request</span>` +
-          `<div class="route-message">"${escapeHtml(userText)}"</div>` +
-          memoryLeaf +
-          `</li>`
-        );
-      }
-      rows.push(
-        `<li class="route-node route-root">` +
-        `<span class="route-label">${escapeHtml(orchestrator.node || 'Orchestrator')}</span> ${conf(orchestrator.confidence)}` +
-        sub(orchRows) +
-        `</li>`
-      );
-
-      // --- Outcome leaves ---
-      if (typeof data.confidence === 'number') rows.push(metaLeaf('overall confidence', conf(data.confidence)));
-      if (data.next_step) rows.push(metaLeaf('next step', `<code>${escapeHtml(data.next_step)}</code>`));
-      if (data.spoken_reply) rows.push(textLeaf('reply', data.spoken_reply, 'route-reply'));
-      if (data.clarification_question) rows.push(textLeaf('clarification', data.clarification_question, 'route-clar'));
-      const runtime = data.maf_runtime;
-      if (runtime) rows.push(metaLeaf('runtime', `<code>${escapeHtml(runtime)}</code>`));
-      if (data.orchestrator_mode) rows.push(metaLeaf('mode', `<code>${escapeHtml(data.orchestrator_mode)}</code>`));
-
-      return `<ul class="route-tree">${rows.join('')}</ul>`;
+    // Minimal, safe Markdown -> HTML renderer for agent replies.
+    // Input is HTML-escaped FIRST, then a small set of Markdown constructs
+    // (headings, bold/italic/code, bullet lists, horizontal rules, paragraphs)
+    // are converted, so no raw HTML from the model is ever injected.
+    function renderInlineMarkdown(text) {
+      return text
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
     }
 
-    function renderOrchestrationDetails(data, userText, memoryTurns) {
-      const log = document.getElementById('orchLog');
-      if (!log) return;
-
-      const empty = document.getElementById('orchEmpty');
-      if (empty) empty.remove();
-
-      const agents = Array.isArray(data.selected_agents) ? data.selected_agents : [];
-      const agentsLabel = agents.length ? agents.join(', ') : 'none';
-      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-      // Collapse older entries so the newest is the only one expanded.
-      log.querySelectorAll('details.route-entry[open]').forEach((el) => el.removeAttribute('open'));
-
-      const entry = document.createElement('details');
-      entry.className = 'route-entry';
-      entry.open = true;
-      entry.innerHTML =
-        `<summary class="route-entry-head">` +
-        `<span class="route-time">${escapeHtml(time)}</span>` +
-        `<span class="route-head-agent">${escapeHtml(agentsLabel)}</span>` +
-        `</summary>` +
-        `<div class="route-entry-body">` +
-        buildRoutingTree(data, userText, memoryTurns) +
-        `</div>`;
-
-      log.appendChild(entry);
-      log.scrollTop = log.scrollHeight;
+    function renderMarkdown(text) {
+      const lines = escapeHtml(text).split(/\r?\n/);
+      const html = [];
+      let inList = false;
+      const closeList = () => {
+        if (inList) {
+          html.push('</ul>');
+          inList = false;
+        }
+      };
+      lines.forEach((raw) => {
+        const line = raw.trim();
+        if (line === '') {
+          closeList();
+          return;
+        }
+        if (/^-{3,}$/.test(line)) {
+          closeList();
+          html.push('<hr>');
+          return;
+        }
+        const heading = line.match(/^(#{1,6})\s+(.*)$/);
+        if (heading) {
+          closeList();
+          const level = heading[1].length;
+          html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+          return;
+        }
+        const bullet = line.match(/^[-*]\s+(.*)$/);
+        if (bullet) {
+          if (!inList) {
+            html.push('<ul>');
+            inList = true;
+          }
+          html.push(`<li>${renderInlineMarkdown(bullet[1])}</li>`);
+          return;
+        }
+        closeList();
+        html.push(`<p>${renderInlineMarkdown(line)}</p>`);
+      });
+      closeList();
+      return html.join('');
     }
 
-    document.getElementById('orchClearLog').addEventListener('click', () => {
-      const log = document.getElementById('orchLog');
-      log.innerHTML =
-        '<div class="orch-empty" id="orchEmpty">No routing data yet. ' +
-        'Start the assistant and speak to see the selected agents and route.</div>';
-    });
+    document.getElementById('orchClearLog').addEventListener('click', () =>
+      RoutingLog.reset(document.getElementById('orchLog'),
+        'No routing data yet. Start the assistant and speak to see the selected agents and route.')
+    );
 
     function getTransportPath() {
       const isWebRTC = document.getElementById('transportToggle').checked;
@@ -377,7 +285,6 @@
         await startMicrophone();
         // Fresh call: start memory clean so routing reflects only this conversation.
         conversationHistory = [];
-        lastOrchestratedText = '';
         document.getElementById('startBtn').disabled = true;
         document.getElementById('stopBtn').disabled = false;
         document.getElementById('transportToggle').disabled = true;
@@ -396,12 +303,33 @@
           if (msg.Kind === 'UserTranscription') {
             addTranscriptionMessage(msg.Text, 'user');
             recordTurn('user', msg.Text);
-            // Send user utterances to travel orchestrator workflow.
-            callTravelOrchestrator(msg.Text);
           }
           if (msg.Kind === 'OrchestratorResponse') {
-            // Optional server-side event support if emitted later.
-            renderOrchestrationDetails(msg.Payload || msg);
+            // The voice model consulted the specialists; show the real result.
+            RoutingLog.render(
+              document.getElementById('orchLog'),
+              msg.Payload || {},
+              msg.UserText || '',
+              conversationHistory.slice(0, -1).slice(-12).length
+            );
+          }
+          if (msg.Kind === 'DirectResponse') {
+            // The model answered the turn itself without consulting specialists.
+            RoutingLog.render(
+              document.getElementById('orchLog'),
+              {
+                selected_agents: [],
+                specialist_outputs: [],
+                workflow_trace: [{
+                  node: 'Voice agent',
+                  rationale: 'Answered directly — no specialist consulted.'
+                }],
+                spoken_reply: msg.Reply || '',
+                next_step: 'direct_answer'
+              },
+              msg.UserText || '',
+              conversationHistory.slice(0, -1).slice(-12).length
+            );
           }
         } else if (event.data instanceof ArrayBuffer) {
           try {
@@ -417,7 +345,6 @@
         document.getElementById('startBtn').disabled = false;
         document.getElementById('stopBtn').disabled = true;
         document.getElementById('transportToggle').disabled = false;
-        lastOrchestratedText = '';
       };
 
       socket.onerror = (err) => console.error('WebSocket error', err);
@@ -442,7 +369,15 @@
       label.textContent = type === 'user' ? 'You' : 'Travel Agent';
 
       const content = document.createElement('div');
-      content.textContent = text;
+      content.className = 'message-text';
+      if (type === 'agent') {
+        // Agent replies may contain Markdown; render it (safely) so headings,
+        // bullets, and bold text display formatted instead of as raw symbols.
+        content.classList.add('markdown');
+        content.innerHTML = renderMarkdown(text);
+      } else {
+        content.textContent = text;
+      }
 
       messageDiv.appendChild(label);
       messageDiv.appendChild(content);
@@ -452,11 +387,8 @@
 
     function clearTranscription() {
       document.getElementById('transcriptionMessages').innerHTML = '';
-      const log = document.getElementById('orchLog');
-      log.innerHTML =
-        '<div class="orch-empty" id="orchEmpty">No routing data yet. ' +
-        'Start the assistant and speak to see the selected agents and route.</div>';
-      lastOrchestratedText = '';
+      RoutingLog.reset(document.getElementById('orchLog'),
+        'No routing data yet. Start the assistant and speak to see the selected agents and route.');
       conversationHistory = [];
     }
 

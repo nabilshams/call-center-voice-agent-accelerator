@@ -1,0 +1,34 @@
+# Local eval intent for FlightBookingAgent (prompt agent).
+# Schema loosely follows the Microsoft Foundry `eval.yaml` guidance, adapted
+# for prompt agents (kind: prompt, no `agent.config` baseline file).
+#
+# Run via the MCP evaluation tools (evaluation_agent_batch_eval_create,
+# targeting agentName=FlightBookingAgent).
+
+name: flight-booking-smoke
+
+agent:
+  name: FlightBookingAgent
+  kind: prompt
+  # `version` intentionally omitted — batch eval uses the latest published
+  # version unless a pinned version is required for regression tracking.
+
+dataset:
+  local_uri: dataset.jsonl
+
+evaluators:
+  # Built-in fallback baseline (Foundry observe skill, "Manual Fallback
+  # Evaluator Strategy").
+  - relevance
+  - task_adherence
+  - intent_resolution
+  - indirect_attack
+  # FlightBookingAgent uses an MCP tool (FlightBooking) — include
+  # tool-call accuracy so we catch fabricated calls / missing calls.
+  - builtin.tool_call_accuracy
+  # Custom rubric evaluator (scores response against per-row expected_behavior).
+  - name: behavioral_adherence
+    local_uri: ../_shared/evaluators/behavioral_adherence.yaml
+
+options:
+  eval_model: ${MAF_MODEL}

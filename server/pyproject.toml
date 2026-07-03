@@ -22,7 +22,8 @@ dependencies = [
     "azure-cognitiveservices-speech>=1.40.0",
     "azure-storage-blob>=12.24.0",
     "pydub>=0.25.0",
-    "audioop-lts>=0.2.1; python_version>='3.13'"
+    "audioop-lts>=0.2.1; python_version>='3.13'",
+    "PyYAML>=6.0"
 ]
 
 [project.optional-dependencies]

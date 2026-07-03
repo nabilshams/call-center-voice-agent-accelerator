@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
+
+kind: hosted
+name: TripPlannerAgent
+description: |
+    Generates day-by-day travel itineraries with morning / lunch / afternoon /
+    dinner / evening blocks for a given destination and duration.
+metadata:
+    tags:
+        - Wanderlux
+        - Trip Planning
+        - Responses Protocol
+protocols:
+    - protocol: responses
+      version: 2.0.0
+resources:
+    cpu: "0.5"
+    memory: 1Gi
+environment_variables:
+    # Use the existing gpt-4o-mini deployment on the TravelAgency Foundry project
+    # (created by the accelerator's Bicep infra, not by azd). To switch models,
+    # update the azd env var and redeploy: `azd env set AZURE_AI_MODEL_DEPLOYMENT_NAME <name>`.
+    - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+      value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+code_configuration:
+    runtime: python_3_13
+    entry_point: main.py
+    dependency_resolution: remote_build

@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="/static/theme-wanderlux.css" />
   <!-- Structure (layout/components) — theme-agnostic -->
   <link rel="stylesheet" href="/static/travel-chat.css" />
+  <!-- Shared routing-log styles (used by chat + voice pages) -->
+  <link rel="stylesheet" href="/static/routing-log.css" />
 </head>
 <body>
   <main class="shell">
@@ -38,8 +40,16 @@
         <button type="button" data-prompt="Track deal alerts for New York to London in early September.">Deal alerts</button>
       </section>
 
-      <section class="meta" id="routingMeta" aria-live="polite">
-        No routing data yet. Send your first request to see selected agents and route.
+      <section class="orchestration-panel" aria-label="Workflow routing">
+        <div class="orch-log-head">
+          <strong>Routing Log</strong>
+          <button type="button" id="orchClearLog" title="Clear routing log">Clear log</button>
+        </div>
+        <div class="orch-log" id="orchLog">
+          <div class="orch-empty" id="orchEmpty">
+            No routing data yet. Send your first request to see the selected agents and route.
+          </div>
+        </div>
       </section>
     </aside>
 
@@ -96,6 +106,8 @@
     </footer>
   </section>
 
+  <!-- Shared routing-log renderer (used by chat + voice pages) -->
+  <script src="/static/routing-log.js"></script>
   <script>
     const messagesEl = document.getElementById("messages");
     const chatForm = document.getElementById("chatForm");
@@ -103,7 +115,7 @@
     const sendBtn = document.getElementById("sendBtn");
     const clearBtn = document.getElementById("clearBtn");
     const typingStatus = document.getElementById("typingStatus");
-    const routingMeta = document.getElementById("routingMeta");
+    const orchLog = document.getElementById("orchLog");
     const noticeText = document.getElementById("noticeText");
     const voiceBtn = document.getElementById("voiceBtn");
     const orchestratorToggle = document.getElementById("orchestratorToggle");
@@ -118,6 +130,69 @@
       return orchestratorToggle && orchestratorToggle.checked ? "multi" : "single";
     }
 
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // Minimal, safe Markdown -> HTML renderer for agent replies.
+    // Input is HTML-escaped FIRST, then a small set of Markdown constructs
+    // (headings, bold/italic/code, bullet lists, horizontal rules, paragraphs)
+    // are converted, so no raw HTML from the model is ever injected.
+    function renderInlineMarkdown(text) {
+      return text
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>");
+    }
+
+    function renderMarkdown(text) {
+      const lines = escapeHtml(text).split(/\r?\n/);
+      const html = [];
+      let inList = false;
+      const closeList = () => {
+        if (inList) {
+          html.push("</ul>");
+          inList = false;
+        }
+      };
+      lines.forEach((raw) => {
+        const line = raw.trim();
+        if (line === "") {
+          closeList();
+          return;
+        }
+        if (/^-{3,}$/.test(line)) {
+          closeList();
+          html.push("<hr>");
+          return;
+        }
+        const heading = line.match(/^(#{1,6})\s+(.*)$/);
+        if (heading) {
+          closeList();
+          const level = heading[1].length;
+          html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+          return;
+        }
+        const bullet = line.match(/^[-*]\s+(.*)$/);
+        if (bullet) {
+          if (!inList) {
+            html.push("<ul>");
+            inList = true;
+          }
+          html.push(`<li>${renderInlineMarkdown(bullet[1])}</li>`);
+          return;
+        }
+        closeList();
+        html.push(`<p>${renderInlineMarkdown(line)}</p>`);
+      });
+      closeList();
+      return html.join("");
+    }
+
     function addMessage(type, text) {
       const card = document.createElement("article");
       card.className = `message ${type}`;
@@ -128,7 +203,14 @@
 
       const body = document.createElement("div");
       body.className = "message-text";
-      body.textContent = text;
+      if (type === "agent") {
+        // Agent replies may contain Markdown; render it (safely) so headings,
+        // bullets, and bold text display formatted instead of as raw symbols.
+        body.classList.add("markdown");
+        body.innerHTML = renderMarkdown(text);
+      } else {
+        body.textContent = text;
+      }
 
       card.appendChild(label);
       card.appendChild(body);
@@ -144,111 +226,6 @@
         return `${spoken}\n\n${clarification}`;
       }
       return spoken || clarification || "I can help with travel planning. Tell me what you need.";
-    }
-
-    function prettyAgentName(name) {
-      if (!name) return "Specialist Agent";
-      // Insert spaces before capitals: "FlightBookingAgent" -> "Flight Booking Agent"
-      return String(name).replace(/([a-z])([A-Z])/g, "$1 $2");
-    }
-
-    function addSpecialistActivity(outputs) {
-      if (!Array.isArray(outputs) || outputs.length === 0) return;
-
-      const card = document.createElement("article");
-      card.className = "message agent specialist-activity";
-
-      const label = document.createElement("div");
-      label.className = "message-label";
-      label.textContent =
-        outputs.length > 1
-          ? `Specialist Agents (${outputs.length})`
-          : "Specialist Agent";
-      card.appendChild(label);
-
-      outputs.forEach((output) => {
-        const item = document.createElement("div");
-        item.className = "specialist-item";
-
-        const head = document.createElement("div");
-        head.className = "specialist-head";
-        const name = document.createElement("span");
-        name.className = "specialist-name";
-        name.textContent = prettyAgentName(output.agent);
-        head.appendChild(name);
-        if (output.confidence !== undefined && output.confidence !== null) {
-          const conf = document.createElement("span");
-          conf.className = "specialist-confidence";
-          conf.textContent = `confidence ${output.confidence}`;
-          head.appendChild(conf);
-        }
-        item.appendChild(head);
-
-        const request = (output.request || "").trim();
-        if (request) {
-          const reqRow = document.createElement("div");
-          reqRow.className = "specialist-row";
-          reqRow.innerHTML = `<span class="specialist-tag request">Request</span>`;
-          const reqText = document.createElement("span");
-          reqText.className = "specialist-text";
-          reqText.textContent = request;
-          reqRow.appendChild(reqText);
-          item.appendChild(reqRow);
-        }
-
-        const reply = (output.summary || "").trim();
-        if (reply) {
-          const repRow = document.createElement("div");
-          repRow.className = "specialist-row";
-          repRow.innerHTML = `<span class="specialist-tag reply">Reply</span>`;
-          const repText = document.createElement("span");
-          repText.className = "specialist-text";
-          repText.textContent = reply;
-          repRow.appendChild(repText);
-          item.appendChild(repRow);
-        }
-
-        if (Array.isArray(output.missing_fields) && output.missing_fields.length) {
-          const missRow = document.createElement("div");
-          missRow.className = "specialist-row";
-          missRow.innerHTML = `<span class="specialist-tag missing">Needs</span>`;
-          const missText = document.createElement("span");
-          missText.className = "specialist-text";
-          missText.textContent = output.missing_fields
-            .map((f) => String(f).replace(/_/g, " "))
-            .join(", ");
-          missRow.appendChild(missText);
-          item.appendChild(missRow);
-        }
-
-        card.appendChild(item);
-      });
-
-      messagesEl.appendChild(card);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    function updateRoutingMeta(data) {
-      const mode = data.orchestrator_mode || "unknown";
-      const strategy = data.orchestration_strategy || (currentStrategy() === "multi" ? "multi-intent" : "single-intent");
-      const runtime = data.maf_runtime || "n/a";
-      const initError = data.maf_init_error || "";
-      const route = data.workflow_route || "n/a";
-      const confidence = data.confidence !== undefined ? data.confidence : "n/a";
-      const nextStep = data.next_step || "n/a";
-      const selectedAgents = Array.isArray(data.selected_agents) && data.selected_agents.length
-        ? data.selected_agents.join(", ")
-        : "none";
-
-      routingMeta.innerHTML =
-        `<strong>Mode:</strong> ${mode}<br>` +
-        `<strong>Strategy:</strong> ${strategy}<br>` +
-        `<strong>Runtime:</strong> ${runtime}<br>` +
-        (initError ? `<strong>Init Error:</strong> ${initError}<br>` : "") +
-        `<strong>Route:</strong> ${route}<br>` +
-        `<strong>Agents:</strong> ${selectedAgents}<br>` +
-        `<strong>Confidence:</strong> ${confidence}<br>` +
-        `<strong>Next:</strong> ${nextStep}`;
     }
 
     async function sendMessage(message) {
@@ -274,7 +251,11 @@
               source: "travel-chat-ui",
               timestamp: new Date().toISOString(),
               orchestration: currentStrategy(),
-              history: conversationTurns.slice(-8),
+              // Exclude the just-pushed current message; history must contain
+              // only PRIOR turns so the orchestrator sends the first request
+              // verbatim (matching the Foundry playground) instead of wrapping
+              // and duplicating it.
+              history: conversationTurns.slice(0, -1).slice(-8),
             },
           }),
         });
@@ -288,8 +269,8 @@
         const assistantText = buildAssistantText(data);
         addMessage("agent", assistantText);
         conversationTurns.push({ role: "assistant", text: assistantText });
-        addSpecialistActivity(data.specialist_outputs);
-        updateRoutingMeta(data);
+        const priorTurns = Math.min(8, Math.max(0, conversationTurns.length - 2));
+        RoutingLog.render(orchLog, data, trimmed, priorTurns);
       } catch (error) {
         console.error("travel chat orchestration error", error);
         noticeText.textContent = "Could not reach the travel orchestrator. Please try again.";
@@ -305,7 +286,7 @@
       conversationTurns = [];
       noticeText.textContent = "";
       typingStatus.textContent = "";
-      routingMeta.textContent = "No routing data yet. Send your first request to see selected agents and route.";
+      RoutingLog.reset(orchLog, "No routing data yet. Send your first request to see the selected agents and route.");
       inputEl.value = "";
       inputEl.focus();
     }
@@ -381,6 +362,11 @@
     });
 
     clearBtn.addEventListener("click", clearConversation);
+
+    const orchClearLog = document.getElementById("orchClearLog");
+    if (orchClearLog) orchClearLog.addEventListener("click", () =>
+      RoutingLog.reset(orchLog, "No routing data yet. Send your first request to see the selected agents and route.")
+    );
 
     // ---- Demo script (non-blocking, editable, server-persisted) ----
     const demoBtn = document.getElementById("demoBtn");

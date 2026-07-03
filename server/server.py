@@ -7,15 +7,15 @@ import time
 from pathlib import Path
 
 from pydub import AudioSegment
+from app.api.foundry_admin import BLUEPRINTS as FOUNDRY_ADMIN_BLUEPRINTS
 from app.api.travel_agency import BLUEPRINTS as TRAVEL_AGENCY_BLUEPRINTS
+from app.foundry import FoundryAgentManagementError, FoundryAgentManager
 from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
 from app.handler.demo_script_storage import DemoScriptStorage
 from app.handler.foundry_workflow_client import FoundryWorkflowClient, FoundryWorkflowError
-from app.handler.local_maf_orchestrator import LocalMAFTravelOrchestrator
-from app.handler.maf_workflow_client import MAFWorkflowClient, MAFWorkflowError
+from app.handler.local_maf_orchestrator import FoundryAgentError, MAFTravelOrchestrator
 from app.handler.speech_transcription_handler import SpeechTranscriptionHandler
-from app.handler.travel_orchestrator import TravelOrchestrator
 from dotenv import load_dotenv
 from quart import Quart, request, websocket, jsonify
 
@@ -61,24 +61,26 @@ app.config["AZURE_OPENAI_CHAT_DEPLOYMENT"] = os.getenv(
 
 # Travel orchestration configuration
 # TRAVEL_ORCHESTRATOR_MODE options:
-# - foundry: use Azure AI Foundry workflow first, then fallback to local on failure
-# - maf: use Microsoft Agent Framework workflow first, then fallback to local on failure
-# - maf-local: use local MAF-style branch workflow orchestrator
-# - local: force local deterministic orchestrator only
-app.config["TRAVEL_ORCHESTRATOR_MODE"] = os.getenv("TRAVEL_ORCHESTRATOR_MODE", "foundry")
+# - foundry: call the workflow defined in Azure AI Foundry via its endpoint
+# - maf: in-process Microsoft Agent Framework orchestrator that calls the
+#         agents defined in Azure AI Foundry
+app.config["TRAVEL_ORCHESTRATOR_MODE"] = os.getenv("TRAVEL_ORCHESTRATOR_MODE", "maf")
 app.config["FOUNDRY_WORKFLOW_ENDPOINT"] = os.getenv("FOUNDRY_WORKFLOW_ENDPOINT", "")
 app.config["FOUNDRY_WORKFLOW_PATH"] = os.getenv("FOUNDRY_WORKFLOW_PATH", "")
 app.config["FOUNDRY_API_KEY"] = os.getenv("FOUNDRY_API_KEY", "")
 app.config["FOUNDRY_WORKFLOW_TIMEOUT_SECONDS"] = os.getenv(
     "FOUNDRY_WORKFLOW_TIMEOUT_SECONDS", "25"
 )
-app.config["MAF_WORKFLOW_ENDPOINT"] = os.getenv("MAF_WORKFLOW_ENDPOINT", "")
-app.config["MAF_WORKFLOW_PATH"] = os.getenv("MAF_WORKFLOW_PATH", "")
-app.config["MAF_API_KEY"] = os.getenv("MAF_API_KEY", "")
-app.config["MAF_WORKFLOW_TIMEOUT_SECONDS"] = os.getenv("MAF_WORKFLOW_TIMEOUT_SECONDS", "25")
 app.config["MAF_NATIVE_SDK_ENABLED"] = os.getenv("MAF_NATIVE_SDK_ENABLED", "true")
 app.config["MAF_PROJECT_ENDPOINT"] = os.getenv("MAF_PROJECT_ENDPOINT", "")
 app.config["MAF_MODEL"] = os.getenv("MAF_MODEL", app.config["AZURE_OPENAI_CHAT_DEPLOYMENT"])
+
+# Generic Foundry admin HTTP surface (hosted-agent CRUD at /api/foundry/agents).
+# Disabled by default; when enabled every request must present ADMIN_API_KEY as
+# the X-Admin-Key header. This is a domain-agnostic building block -- consumers
+# (travel-agency, etc.) can also import FoundryAgentManager directly.
+app.config["FOUNDRY_ADMIN_ENABLED"] = os.getenv("FOUNDRY_ADMIN_ENABLED", "false")
+app.config["ADMIN_API_KEY"] = os.getenv("ADMIN_API_KEY", "")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s"
@@ -96,14 +98,38 @@ else:
 
 acs_handler = AcsEventHandler(app.config)
 
-# NOTE: Keep local orchestrator initialization even when Foundry is primary.
-# This is intentionally preserved so operators can switch back quickly by setting:
-# TRAVEL_ORCHESTRATOR_MODE=local
-travel_orchestrator = TravelOrchestrator()
-local_maf_orchestrator = LocalMAFTravelOrchestrator(app.config)
+# In-process Microsoft Agent Framework orchestrator that calls the agents
+# defined in Azure AI Foundry (TRAVEL_ORCHESTRATOR_MODE=maf).
+local_maf_orchestrator = MAFTravelOrchestrator(app.config)
+# Client for the workflow defined in Azure AI Foundry (TRAVEL_ORCHESTRATOR_MODE=foundry).
 foundry_workflow_client = FoundryWorkflowClient(app.config)
-maf_workflow_client = MAFWorkflowClient(app.config)
 demo_script_storage = DemoScriptStorage(os.getenv("DEMO_SCRIPT_PATH"))
+
+# Optional generic Foundry admin surface. Registered only when explicitly
+# enabled AND an admin key is set; keeps the surface off by default in dev/prod.
+_foundry_admin_enabled = str(app.config.get("FOUNDRY_ADMIN_ENABLED", "false")).lower() == "true"
+if _foundry_admin_enabled:
+    if not app.config.get("ADMIN_API_KEY"):
+        logger.warning(
+            "FOUNDRY_ADMIN_ENABLED=true but ADMIN_API_KEY is empty; "
+            "skipping /api/foundry/agents registration."
+        )
+    elif not app.config.get("MAF_PROJECT_ENDPOINT"):
+        logger.warning(
+            "FOUNDRY_ADMIN_ENABLED=true but MAF_PROJECT_ENDPOINT is empty; "
+            "skipping /api/foundry/agents registration."
+        )
+    else:
+        app.config["FOUNDRY_AGENT_MANAGER"] = FoundryAgentManager(
+            app.config["MAF_PROJECT_ENDPOINT"],
+            managed_identity_client_id=app.config.get(
+                "AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"
+            )
+            or None,
+        )
+        for _bp in FOUNDRY_ADMIN_BLUEPRINTS:
+            app.register_blueprint(_bp)
+        logger.info("Foundry admin API registered at /api/foundry/agents")
 
 
 @app.route("/acs/incomingcall", methods=["POST"])
@@ -287,7 +313,8 @@ async def reset_demo_script():
 
 @app.route("/travel/orchestrate", methods=["POST"])
 async def travel_orchestrate():
-    """Routes travel requests via Foundry workflow or local orchestrator fallback."""
+    """Routes travel requests to the Foundry workflow endpoint (foundry) or the
+    in-process MAF orchestrator that calls Foundry agents (maf)."""
     def emit_orchestration_metric(
         *,
         outcome: str,
@@ -347,38 +374,30 @@ async def travel_orchestrate():
     mode = app.config.get("TRAVEL_ORCHESTRATOR_MODE", "foundry").lower()
     logger.info("Travel orchestrator request received (mode=%s)", mode)
 
-    # NOTE: Explicit local mode for fast rollback / diagnostics.
-    # Keep this block even when Foundry orchestration is enabled.
-    if mode == "local":
-        result = await travel_orchestrator.orchestrate(message=message, context=context)
-        result["orchestrator_mode"] = "local"
-        latency_ms = int((time.perf_counter() - started_at) * 1000)
-        emit_orchestration_metric(
-            outcome="success",
-            orchestrator_mode=result.get("orchestrator_mode", "local"),
-            selected_agents=result.get("selected_agents", []),
-            confidence=float(result.get("confidence", 0.0)),
-            latency_ms=latency_ms,
-        )
-        logger.info(
-            "Travel orchestrator response (mode=%s, agents=%s, confidence=%s)",
-            result.get("orchestrator_mode"),
-            result.get("selected_agents", []),
-            result.get("confidence", 0.0),
-        )
-        return jsonify(result)
-
-    if mode == "maf-local":
+    # MAF mode: in-process orchestrator that calls the agents defined in Foundry.
+    if mode == "maf":
         strategy = (payload.get("strategy") or context.get("orchestration") or "single").lower()
-        if strategy in ("multi", "multi-intent", "parallel"):
-            result = await local_maf_orchestrator.orchestrate_multi(message=message, context=context)
-        else:
-            result = await local_maf_orchestrator.orchestrate(message=message, context=context)
-        result["orchestrator_mode"] = "maf-local"
+        try:
+            if strategy in ("multi", "multi-intent", "parallel"):
+                result = await local_maf_orchestrator.orchestrate_multi(message=message, context=context)
+            else:
+                result = await local_maf_orchestrator.orchestrate(message=message, context=context)
+        except FoundryAgentError as exc:
+            logger.error("MAF orchestration failed: %s", exc)
+            emit_orchestration_metric(
+                outcome="error",
+                orchestrator_mode="maf",
+                selected_agents=[],
+                confidence=0.0,
+                latency_ms=int((time.perf_counter() - started_at) * 1000),
+                fallback_reason="maf_failed",
+            )
+            return jsonify({"error": f"MAF orchestration failed: {exc}"}), 502
+        result["orchestrator_mode"] = "maf"
         latency_ms = int((time.perf_counter() - started_at) * 1000)
         emit_orchestration_metric(
             outcome="success",
-            orchestrator_mode=result.get("orchestrator_mode", "maf-local"),
+            orchestrator_mode=result.get("orchestrator_mode", "maf"),
             selected_agents=result.get("selected_agents", []),
             confidence=float(result.get("confidence", 0.0)),
             latency_ms=latency_ms,
@@ -391,79 +410,59 @@ async def travel_orchestrate():
         )
         return jsonify(result)
 
-    remote_clients = {
-        "foundry": (foundry_workflow_client, FoundryWorkflowError),
-        "maf": (maf_workflow_client, MAFWorkflowError),
-    }
-
-    # Foundry or MAF mode with local fallback for resiliency.
-    if mode in remote_clients:
-        remote_client, remote_error = remote_clients[mode]
-        if not remote_client.is_configured():
-            logger.warning(
-                "%s workflow is not configured, falling back to local orchestrator",
-                mode,
-            )
-        else:
-            try:
-                result = await remote_client.invoke(message=message, context=context)
-                result["orchestrator_mode"] = mode
-                latency_ms = int((time.perf_counter() - started_at) * 1000)
-                emit_orchestration_metric(
-                    outcome="success",
-                    orchestrator_mode=result.get("orchestrator_mode", mode),
-                    selected_agents=result.get("selected_agents", []),
-                    confidence=float(result.get("confidence", 0.0)),
-                    latency_ms=latency_ms,
-                )
-                logger.info(
-                    "Travel orchestrator response (mode=%s, agents=%s, confidence=%s)",
-                    result.get("orchestrator_mode"),
-                    result.get("selected_agents", []),
-                    result.get("confidence", 0.0),
-                )
-                return jsonify(result)
-            except remote_error as exc:
-                logger.warning(
-                    "%s workflow failed, falling back to local orchestrator: %s",
-                    mode,
-                    exc,
-                )
-
-    elif mode != "local":
-        logger.warning(
-            "Unknown TRAVEL_ORCHESTRATOR_MODE '%s'; falling back to local orchestrator",
-            mode,
-        )
-
-    fallback_reason = "remote_failed_or_not_configured"
+    # Foundry mode: call the workflow defined in Azure AI Foundry via its endpoint.
     if mode == "foundry":
-        fallback_reason = "foundry_failed_or_not_configured"
-    elif mode == "maf":
-        fallback_reason = "maf_failed_or_not_configured"
-    elif mode not in ("local", "maf-local", "foundry", "maf"):
-        fallback_reason = "unknown_mode"
+        if not foundry_workflow_client.is_configured():
+            emit_orchestration_metric(
+                outcome="error",
+                orchestrator_mode="foundry",
+                selected_agents=[],
+                confidence=0.0,
+                latency_ms=int((time.perf_counter() - started_at) * 1000),
+                fallback_reason="foundry_not_configured",
+            )
+            return jsonify({"error": "Foundry workflow is not configured"}), 503
+        try:
+            result = await foundry_workflow_client.invoke(message=message, context=context)
+        except FoundryWorkflowError as exc:
+            logger.error("Foundry workflow failed: %s", exc)
+            emit_orchestration_metric(
+                outcome="error",
+                orchestrator_mode="foundry",
+                selected_agents=[],
+                confidence=0.0,
+                latency_ms=int((time.perf_counter() - started_at) * 1000),
+                fallback_reason="foundry_failed",
+            )
+            return jsonify({"error": f"Foundry workflow failed: {exc}"}), 502
+        result["orchestrator_mode"] = "foundry"
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+        emit_orchestration_metric(
+            outcome="success",
+            orchestrator_mode=result.get("orchestrator_mode", "foundry"),
+            selected_agents=result.get("selected_agents", []),
+            confidence=float(result.get("confidence", 0.0)),
+            latency_ms=latency_ms,
+        )
+        logger.info(
+            "Travel orchestrator response (mode=%s, agents=%s, confidence=%s)",
+            result.get("orchestrator_mode"),
+            result.get("selected_agents", []),
+            result.get("confidence", 0.0),
+        )
+        return jsonify(result)
 
-    # NOTE: Keep this fallback path to preserve service continuity and allow
-    # future local-only operation with minimal effort.
-    fallback_result = await travel_orchestrator.orchestrate(message=message, context=context)
-    fallback_result["orchestrator_mode"] = "local-fallback"
-    latency_ms = int((time.perf_counter() - started_at) * 1000)
     emit_orchestration_metric(
-        outcome="fallback",
-        orchestrator_mode=fallback_result.get("orchestrator_mode", "local-fallback"),
-        selected_agents=fallback_result.get("selected_agents", []),
-        confidence=float(fallback_result.get("confidence", 0.0)),
-        latency_ms=latency_ms,
-        fallback_reason=fallback_reason,
+        outcome="bad_request",
+        orchestrator_mode=mode,
+        selected_agents=[],
+        confidence=0.0,
+        latency_ms=int((time.perf_counter() - started_at) * 1000),
+        fallback_reason="unknown_mode",
     )
-    logger.info(
-        "Travel orchestrator response (mode=%s, agents=%s, confidence=%s)",
-        fallback_result.get("orchestrator_mode"),
-        fallback_result.get("selected_agents", []),
-        fallback_result.get("confidence", 0.0),
-    )
-    return jsonify(fallback_result)
+    return jsonify(
+        {"error": f"Unknown TRAVEL_ORCHESTRATOR_MODE '{mode}'; expected 'foundry' or 'maf'"}
+    ), 400
 
 
 # ============================================================================

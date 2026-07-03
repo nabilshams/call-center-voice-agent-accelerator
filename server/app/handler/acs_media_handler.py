@@ -13,7 +13,7 @@ from azure.identity.aio import ManagedIdentityCredential, DefaultAzureCredential
 from websockets.typing import Data
 
 from .ambient_mixer import AmbientMixer
-from .local_maf_orchestrator import LocalMAFTravelOrchestrator
+from .local_maf_orchestrator import MAFTravelOrchestrator
 from .personas import get_random_persona, build_persona_prompt, Persona
 from .transport_factory import TransportFactory, TransportType
 from .transcription_storage import TranscriptionStorage
@@ -38,13 +38,27 @@ SPECIALIST_HOLDING_PHRASE = (
 
 # Extra guidance appended to the system prompt when specialist tool calling is on.
 SPECIALIST_PROMPT_GUIDANCE = (
-    "You can consult specialist travel agents (flights, holiday packages, cruises, "
-    "tours, inspiration, deals, post-booking, and consultant match). Whenever the "
-    f"traveler's request needs specialist knowledge, call the {SPECIALIST_TOOL_NAME} "
-    "function with their request. The system will let the traveler know you are "
-    "checking with the specialists, so you do not need to stall yourself. When the "
-    "specialist results come back, relay them naturally in one cohesive, voice-friendly "
-    "reply and never invent prices, availability, or booking references."
+    "You work alongside specialist travel agents (flights, holiday packages, cruises, "
+    "tours, inspiration, deals, post-booking, and consultant match).\n"
+    "You may answer briefly yourself for greetings, small talk, acknowledgments, and "
+    "confirming or repeating back what the traveler said.\n"
+    f"For anything involving travel product details, availability, pricing, options, "
+    f"recommendations, itineraries, or bookings you MUST call the {SPECIALIST_TOOL_NAME} "
+    "function with the traveler's request instead of answering from your own knowledge.\n"
+    "Do not ask the traveler your own clarifying questions (such as budget or dates) "
+    "before consulting — pass the request straight to the specialists and let them ask "
+    "for any missing details. The system tells the traveler you are checking with the "
+    "specialists, so you do not need to stall.\n"
+    "When the specialist results come back, decide what is relevant and relay it in a "
+    "short, natural, voice-friendly reply:\n"
+    "- Lead with the direct answer to what the traveler actually asked.\n"
+    "- Surface at most the top two or three options; never read a long list aloud.\n"
+    "- Include only the decision-relevant specifics (the price or timing differences "
+    "that matter), not every detail.\n"
+    "- Offer to go deeper, e.g. 'want me to walk through any of these in detail?'\n"
+    "- Preserve any single follow-up question the specialists asked.\n"
+    "- Keep it to a sentence or two since it is spoken, and never invent prices, "
+    "availability, or booking references that were not in the specialist result."
 )
 
 
@@ -196,10 +210,10 @@ class ACSMediaHandler:
 
         # Multi-agent specialist orchestration (Voice Live function tool).
         self._enable_specialists = enable_specialists
-        self._orchestrator: Optional[LocalMAFTravelOrchestrator] = None
+        self._orchestrator: Optional[MAFTravelOrchestrator] = None
         if enable_specialists:
             try:
-                self._orchestrator = LocalMAFTravelOrchestrator(config)
+                self._orchestrator = MAFTravelOrchestrator(config)
             except Exception:
                 logger.exception(
                     "[VoiceLiveACSHandler] Failed to init specialist orchestrator; "
@@ -211,11 +225,18 @@ class ACSMediaHandler:
         self._conversation_history: list[dict[str, str]] = []
 
         # Specialist tool-call flow state (one in-flight tool call at a time).
-        self._tool_call: Optional[dict] = None
-        self._tool_result: Optional[dict] = None
-        self._tool_result_ready = asyncio.Event()
-        self._tool_ack_sent = False
-        self._tool_result_presented = False
+        # `_response_idle` tracks whether Voice Live currently has an active
+        # response; it is cleared on ``response.created`` and set on
+        # ``response.done`` so we never issue overlapping ``response.create``
+        # requests while sequencing the holding phrase and the grounded answer.
+        self._response_idle = asyncio.Event()
+        self._response_idle.set()
+        self._tool_call_active = False
+        # The most recent user utterance awaiting a reply. Used to tell whether a
+        # turn was answered directly (no specialist consulted) so the routing log
+        # can show a "handled directly" marker. Cleared once a turn is consulted
+        # or a direct answer has been logged.
+        self._pending_user_text: Optional[str] = None
 
     def _generate_guid(self):
         return str(uuid.uuid4())
@@ -346,10 +367,21 @@ class ACSMediaHandler:
                             )
                             # Save user message to transcription storage
                             self._transcription_storage.add_user_message(transcript)
+                            # Keep a running transcript for specialist context.
+                            self._record_turn("user", transcript)
+                            # Mark this turn as awaiting a reply; if the agent
+                            # answers without consulting specialists we log it as
+                            # handled directly.
+                            self._pending_user_text = transcript
 
                     case "conversation.item.input_audio_transcription.failed":
                         error_msg = event.get("error")
                         logger.warning("Transcription Error: %s", error_msg)
+
+                    case "response.created":
+                        # A response is now active; block any new response.create
+                        # until it finishes (see response.done).
+                        self._response_idle.clear()
 
                     case "response.done":
                         response = event.get("response", {})
@@ -358,6 +390,20 @@ class ACSMediaHandler:
                             logger.info(
                                 "Status Details: %s",
                                 json.dumps(response["status_details"], indent=2),
+                            )
+                        # The conversation is idle again; unblock sequenced
+                        # response.create calls (holding phrase / grounded answer).
+                        self._response_idle.set()
+
+                    case "response.function_call_arguments.done":
+                        # The model invoked a function tool. Only the specialist
+                        # tool is registered, so route it to the orchestrator.
+                        if self._enable_specialists and self._orchestrator is not None:
+                            asyncio.create_task(
+                                self._handle_specialist_tool_call(
+                                    event.get("call_id"),
+                                    event.get("arguments"),
+                                )
                             )
 
                     case "response.audio_transcript.done":
@@ -370,6 +416,16 @@ class ACSMediaHandler:
                         if transcript:
                             agent_name = self.persona["name"] if self.persona else None
                             self._transcription_storage.add_agent_message(transcript, agent_name)
+                            # Keep a running transcript for specialist context.
+                            self._record_turn("assistant", transcript)
+                            # If this reply resolved a user turn without consulting
+                            # specialists, surface that in the routing log so the
+                            # panel reflects reality instead of looking idle.
+                            if self._pending_user_text is not None:
+                                await self._send_direct_answer_log(
+                                    self._pending_user_text, transcript
+                                )
+                                self._pending_user_text = None
 
                     case "response.audio.delta":
                         delta = event.get("delta")
@@ -406,6 +462,167 @@ class ACSMediaHandler:
                         )
         except Exception:
             logger.exception("[VoiceLiveACSHandler] Receiver loop error")
+
+    def _record_turn(self, role: str, text: str) -> None:
+        """Append a turn to the running transcript used as orchestrator context."""
+        if not text:
+            return
+        self._conversation_history.append({"role": role, "text": text})
+        # Keep the history bounded; only recent turns matter for routing.
+        if len(self._conversation_history) > 40:
+            self._conversation_history = self._conversation_history[-40:]
+
+    @staticmethod
+    def _parse_tool_request(arguments) -> str:
+        """Extract the ``request`` string from the tool-call arguments payload."""
+        if not arguments:
+            return ""
+        if isinstance(arguments, dict):
+            data = arguments
+        else:
+            try:
+                data = json.loads(arguments)
+            except (json.JSONDecodeError, TypeError):
+                return str(arguments).strip()
+        return str(data.get("request", "")).strip()
+
+    async def _consult_specialists(self, request_text: str) -> dict:
+        """Run the specialist orchestrator and return its full result dict."""
+        context = {
+            "channel": "voice-web",
+            "source": "voice-tool",
+            "history": list(self._conversation_history[-12:]),
+        }
+        return await self._orchestrator.orchestrate_multi(
+            message=request_text, context=context
+        )
+
+    @staticmethod
+    def _format_tool_output(result: dict) -> str:
+        """Build the voice-ready text handed back to the model from a result dict."""
+        reply = (result.get("spoken_reply") or "").strip()
+        clarification = (result.get("clarification_question") or "").strip()
+        if reply and clarification:
+            return f"{reply}\n\n{clarification}"
+        return reply or clarification or "No specialist information was available."
+
+    async def _send_routing_log(self, user_text: str, result: dict) -> None:
+        """Push the specialist orchestration result to the browser routing log."""
+        try:
+            await self.send_message(
+                json.dumps(
+                    {
+                        "Kind": "OrchestratorResponse",
+                        "UserText": user_text,
+                        "Payload": result,
+                    }
+                )
+            )
+        except Exception:
+            logger.exception("[VoiceLiveACSHandler] Failed to send routing log")
+
+    async def _send_direct_answer_log(self, user_text: str, reply: str) -> None:
+        """Tell the browser the agent answered a turn without consulting specialists."""
+        try:
+            await self.send_message(
+                json.dumps(
+                    {
+                        "Kind": "DirectResponse",
+                        "UserText": user_text,
+                        "Reply": reply,
+                    }
+                )
+            )
+        except Exception:
+            logger.exception("[VoiceLiveACSHandler] Failed to send direct-answer log")
+
+    async def _speak_text(self, text: str) -> None:
+        """Have the model speak a specific phrase (used for the holding phrase)."""
+        await self._response_idle.wait()
+        self._response_idle.clear()
+        await self._send_json(
+            {
+                "type": "response.create",
+                "response": {
+                    "instructions": (
+                        f"Say this to the traveler, warmly and briefly: {text}"
+                    )
+                },
+            }
+        )
+
+    async def _create_response(self) -> None:
+        """Ask the model to generate a response from the current conversation."""
+        await self._response_idle.wait()
+        self._response_idle.clear()
+        await self._send_json({"type": "response.create"})
+
+    async def _submit_tool_output(self, call_id: str, output: str) -> None:
+        """Return a function-call result to the model and let it speak."""
+        await self._send_json(
+            {
+                "type": "conversation.item.create",
+                "item": {
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": output,
+                },
+            }
+        )
+        await self._create_response()
+
+    async def _handle_specialist_tool_call(self, call_id, arguments) -> None:
+        """Run the specialist orchestrator for a Voice Live function call and feed
+        the blended result back to the model so it speaks a grounded answer.
+
+        Sequencing: wait for the function-call response to finish, speak a holding
+        phrase to mask latency, query the orchestrator, then submit the result and
+        trigger the grounded reply — never issuing overlapping responses.
+        """
+        if not call_id:
+            return
+        if self._tool_call_active:
+            logger.info(
+                "[VoiceLiveACSHandler] Specialist tool call already in progress; ignoring"
+            )
+            return
+        self._tool_call_active = True
+        try:
+            request_text = self._parse_tool_request(arguments)
+            if not request_text:
+                # Fall back to the most recent user utterance if the model passed
+                # no explicit request argument.
+                for turn in reversed(self._conversation_history):
+                    if turn.get("role") == "user" and turn.get("text"):
+                        request_text = turn["text"]
+                        break
+
+            # This turn is being consulted, so it is no longer a candidate for the
+            # "handled directly" marker.
+            self._pending_user_text = None
+
+            # Mask orchestration latency with a short holding phrase, then query
+            # the specialists while it plays.
+            await self._speak_text(SPECIALIST_HOLDING_PHRASE)
+            result = await self._consult_specialists(request_text)
+            # Drive the routing log from the real tool call (single source of truth).
+            await self._send_routing_log(request_text, result)
+            await self._submit_tool_output(call_id, self._format_tool_output(result))
+        except Exception:
+            logger.exception("[VoiceLiveACSHandler] Specialist tool call failed")
+            # Best effort: unblock the model so the conversation can continue.
+            try:
+                await self._submit_tool_output(
+                    call_id,
+                    "Specialist lookup is unavailable right now; answer the traveler "
+                    "directly and offer to follow up.",
+                )
+            except Exception:
+                logger.exception(
+                    "[VoiceLiveACSHandler] Failed to submit fallback tool output"
+                )
+        finally:
+            self._tool_call_active = False
 
     async def send_message(self, message: Data):
         """Sends data back to client WebSocket."""

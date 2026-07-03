@@ -24,8 +24,8 @@ param storageBlobEndpoint string = ''
 @description('Azure Storage container name for transcripts')
 param transcriptsContainerName string = 'transcripts'
 
-@description('Travel orchestrator mode: maf-local | foundry | maf | local')
-param travelOrchestratorMode string = 'maf-local'
+@description('Travel orchestrator mode: foundry | maf')
+param travelOrchestratorMode string = 'maf'
 
 @description('Enable Native MAF SDK for local orchestrator')
 param mafNativeSdkEnabled string = 'true'

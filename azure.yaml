@@ -1,20 +1,85 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+requiredVersions:
+    azd: '>=1.14.0'
 name: voice-live-agent
 metadata:
-  template: voice-live-agent@0.1.0
-requiredVersions:
-  azd: ">=1.14.0"
+    template: voice-live-agent@0.1.0
 services:
+    # Hosted agent (container-deployed). Owns its own runtime + Dockerfile.
+    TripPlannerAgent:
+        project: src/travel_agency/TripPlannerAgent
+        host: azure.ai.agent
+        language: python
+        config:
+            container:
+                resources:
+                    cpu: "0.5"
+                    memory: 1Gi
+
+    # Prompt agents. Registered so `azd ai agent eval` can locate each
+    # agent's local eval.yaml + dataset.jsonl. Publishing new versions of
+    # these still goes through `scripts/apply_prompt_agents.py` (the
+    # declarative diff-and-create-version workflow) -- do NOT run
+    # `azd deploy <PromptAgent>` for these entries.
+    ConsultantMatchAgent:
+        project: src/travel_agency/ConsultantMatchAgent
+        host: azure.ai.agent
+        language: python
+    CruiseDiscoveryAgent:
+        project: src/travel_agency/CruiseDiscoveryAgent
+        host: azure.ai.agent
+        language: python
+    DealAlertAgent:
+        project: src/travel_agency/DealAlertAgent
+        host: azure.ai.agent
+        language: python
+    FlightBookingAgent:
+        project: src/travel_agency/FlightBookingAgent
+        host: azure.ai.agent
+        language: python
+    GeneralFAQAgent:
+        project: src/travel_agency/GeneralFAQAgent
+        host: azure.ai.agent
+        language: python
+    HolidayPackageAgent:
+        project: src/travel_agency/HolidayPackageAgent
+        host: azure.ai.agent
+        language: python
+    MultiIntentOrchestrator:
+        project: src/travel_agency/MultiIntentOrchestrator
+        host: azure.ai.agent
+        language: python
+    OrchestratorAgent:
+        project: src/travel_agency/OrchestratorAgent
+        host: azure.ai.agent
+        language: python
+    PostBookingCocierge:
+        project: src/travel_agency/PostBookingCocierge
+        host: azure.ai.agent
+        language: python
+    TourMatchingAgent:
+        project: src/travel_agency/TourMatchingAgent
+        host: azure.ai.agent
+        language: python
+    TravelInspirationAgent:
+        project: src/travel_agency/TravelInspirationAgent
+        host: azure.ai.agent
+        language: python
+
     app:
         project: server
         host: containerapp
         language: python
         docker:
-          path: Dockerfile
-          remoteBuild: true
+            path: Dockerfile
+            remoteBuild: true
 pipeline:
-  variables:
-    - AZURE_LOCATION
-    - AZURE_RESOURCE_GROUP
-    - AZURE_CONTAINER_REGISTRY_ENDPOINT
-    - SERVICE_API_ENDPOINTS
-    - AZURE_VOICE_LIVE_ENDPOINT
+    provider: ""
+    variables:
+        - AZURE_LOCATION
+        - AZURE_RESOURCE_GROUP
+        - AZURE_CONTAINER_REGISTRY_ENDPOINT
+        - SERVICE_API_ENDPOINTS
+        - AZURE_VOICE_LIVE_ENDPOINT
+    secrets: []

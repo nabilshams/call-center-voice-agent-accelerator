@@ -22,8 +22,8 @@ param modelName string = ' gpt-4o-mini'
 @description('Id of the user or app to assign application roles. If ommited will be generated from the user assigned identity.')
 param principalId string = ''
 
-@description('Travel orchestrator mode injected into the container: maf-local | foundry | maf | local')
-param travelOrchestratorMode string = 'maf-local'
+@description('Travel orchestrator mode injected into the container: foundry | maf')
+param travelOrchestratorMode string = 'maf'
 
 @description('AI Foundry project name used to build the MAF project endpoint (e.g. TravelAgency)')
 param mafProjectName string = 'TravelAgency'

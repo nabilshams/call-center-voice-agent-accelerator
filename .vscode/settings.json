@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^python -c \"\nimport inspect\nfrom azure\\.ai\\.projects\\.models import _models\n# AgentDetails shape\nprint\\('=== AgentDetails ==='\\)\nprint\\(inspect\\.getsource\\(_models\\.AgentDetails\\)\\[:1200\\]\\)\nprint\\('=== AgentVersionDetails ==='\\)\nprint\\(inspect\\.getsource\\(_models\\.AgentVersionDetails\\)\\[:1200\\]\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

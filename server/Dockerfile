@@ -39,8 +39,21 @@ COPY pyproject.toml uv.lock /app/
 # Sync the project into a new environment, using the frozen lockfile
 RUN uv sync --frozen --no-dev --no-install-project --no-editable --all-packages
 
-# Ensure Native MAF SDK is available at runtime for maf-local orchestration.
-RUN /app/.venv/bin/pip install --no-cache-dir "agent-framework>=0.1.0"
+# Ensure Native MAF SDK is available at runtime for maf orchestration.
+# Pin the meta package to one pre-release so core + azure-ai + azure-ai-projects
+# are co-versioned. An unpinned/skewed install (e.g. newer core, older azure-ai)
+# breaks `from agent_framework.azure import AzureAIAgentClient` with
+# `ImportError: cannot import name 'use_observability'`, which silently drops the
+# orchestrator to the deterministic fallback. Note: Microsoft Agent Framework
+# only ships as pre-releases (1.0.0rc*/b*); the "stable" 1.x on PyPI is a
+# different package whose `agent_framework.azure` lacks `AzureAIAgentClient`.
+# The orchestrator consumes Foundry *prompt* agents via
+# `agent_framework.foundry.FoundryAgent`, so pin `agent-framework-foundry` to the
+# same pre-release explicitly (it is pulled transitively via core[all], but the
+# extra is unpinned upstream).
+RUN /app/.venv/bin/pip install --no-cache-dir --pre \
+    "agent-framework==1.0.0rc6" \
+    "agent-framework-foundry==1.0.0rc6"
 
 COPY *.py *.md /app/
 COPY app /app/app/

@@ -15,7 +15,7 @@
         "value": "${SERVICE_APP_RESOURCE_EXISTS=false}"
       },
       "travelOrchestratorMode": {
-        "value": "${TRAVEL_ORCHESTRATOR_MODE=maf-local}"
+        "value": "${TRAVEL_ORCHESTRATOR_MODE=maf}"
       },
       "mafProjectName": {
         "value": "${MAF_PROJECT_NAME=TravelAgency}"
