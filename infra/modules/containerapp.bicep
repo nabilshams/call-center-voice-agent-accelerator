@@ -164,6 +164,13 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
               value: chatDeploymentName
             }
             {
+              // Document Intelligence (prebuilt-read) endpoint used by the
+              // attachment extractor for TripPlannerAgent. Same underlying
+              // multi-service AIServices account as AZURE_OPENAI_ENDPOINT.
+              name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT'
+              value: aiServicesEndpoint
+            }
+            {
               name: 'TRAVEL_ORCHESTRATOR_MODE'
               value: travelOrchestratorMode
             }

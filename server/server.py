@@ -12,6 +12,13 @@ from app.api.travel_agency import BLUEPRINTS as TRAVEL_AGENCY_BLUEPRINTS
 from app.foundry import FoundryAgentManagementError, FoundryAgentManager
 from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
+from app.handler import attachment_extractor
+from app.handler.attachment_extractor import (
+    AttachmentExtractionError,
+    AttachmentTooLargeError,
+    UnsupportedAttachmentError,
+)
+from app.handler.attachment_store import AttachmentStore
 from app.handler.demo_script_storage import DemoScriptStorage
 from app.handler.foundry_workflow_client import FoundryWorkflowClient, FoundryWorkflowError
 from app.handler.local_maf_orchestrator import FoundryAgentError, MAFTravelOrchestrator
@@ -75,6 +82,12 @@ app.config["MAF_NATIVE_SDK_ENABLED"] = os.getenv("MAF_NATIVE_SDK_ENABLED", "true
 app.config["MAF_PROJECT_ENDPOINT"] = os.getenv("MAF_PROJECT_ENDPOINT", "")
 app.config["MAF_MODEL"] = os.getenv("MAF_MODEL", app.config["AZURE_OPENAI_CHAT_DEPLOYMENT"])
 
+# Upload size cap for /travel/attachments (and /transcription/upload). Default
+# 25 MB matches AttachmentStore's per-session cap; override with MAX_UPLOAD_BYTES.
+app.config["MAX_CONTENT_LENGTH"] = int(
+    os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024))
+)
+
 # Generic Foundry admin HTTP surface (hosted-agent CRUD at /api/foundry/agents).
 # Disabled by default; when enabled every request must present ADMIN_API_KEY as
 # the X-Admin-Key header. This is a domain-agnostic building block -- consumers
@@ -104,6 +117,11 @@ local_maf_orchestrator = MAFTravelOrchestrator(app.config)
 # Client for the workflow defined in Azure AI Foundry (TRAVEL_ORCHESTRATOR_MODE=foundry).
 foundry_workflow_client = FoundryWorkflowClient(app.config)
 demo_script_storage = DemoScriptStorage(os.getenv("DEMO_SCRIPT_PATH"))
+
+# Session-scoped store for files uploaded via POST /travel/attachments. Only
+# TripPlannerAgent currently consumes them (see AGENTS_ACCEPTING_ATTACHMENTS
+# in local_maf_orchestrator.py); records TTL out after 30 minutes of inactivity.
+attachment_store = AttachmentStore()
 
 # Optional generic Foundry admin surface. Registered only when explicitly
 # enabled AND an admin key is set; keeps the surface off by default in dev/prod.
@@ -311,6 +329,107 @@ async def reset_demo_script():
     return jsonify(restored)
 
 
+@app.route("/travel/attachments", methods=["POST"])
+async def travel_attachment_upload():
+    """Upload a file the customer wants TripPlannerAgent to see.
+
+    Multipart form:
+      - ``file``       (required): the file itself.
+      - ``session_id`` (required): opaque client-minted id; groups a
+        conversation's attachments and drives TTL.
+
+    Returns ``{attachment_id, filename, kind, mime, size_bytes, has_text}``
+    on 201; ``{error}`` with 4xx on validation problems. The extracted text
+    is intentionally NOT returned to the browser -- callers reference the
+    file by id in a subsequent ``/travel/orchestrate`` request.
+    """
+    logger = logging.getLogger("travel_attachment_upload")
+    try:
+        form = await request.form
+        files = await request.files
+    except Exception as exc:
+        logger.warning("multipart_parse_failed error=%s", exc)
+        return jsonify({"error": "Malformed multipart body."}), 400
+
+    session_id = (form.get("session_id") or "").strip()
+    if not session_id:
+        return jsonify({"error": "session_id is required"}), 400
+
+    upload = files.get("file")
+    if upload is None or not (upload.filename or "").strip():
+        return jsonify({"error": "file is required"}), 400
+
+    filename = upload.filename
+    mime = (upload.mimetype or "").strip() or "application/octet-stream"
+
+    raw_bytes = upload.read()
+    if not raw_bytes:
+        return jsonify({"error": "Empty file."}), 400
+
+    try:
+        extracted = await attachment_extractor.extract(
+            raw_bytes=raw_bytes, mime=mime, filename=filename,
+        )
+    except UnsupportedAttachmentError as exc:
+        logger.info(
+            "attachment_rejected_mime filename=%s mime=%s reason=%s",
+            filename, mime, exc,
+        )
+        return jsonify({"error": str(exc)}), 415
+    except AttachmentTooLargeError as exc:
+        logger.info("attachment_rejected_size filename=%s size=%s", filename, len(raw_bytes))
+        return jsonify({"error": str(exc)}), 413
+    except AttachmentExtractionError as exc:
+        logger.warning("attachment_extract_failed filename=%s error=%s", filename, exc)
+        return jsonify({"error": str(exc)}), 422
+
+    try:
+        record = attachment_store.add(
+            session_id=session_id,
+            filename=filename,
+            kind=extracted.kind,
+            mime=extracted.mime,
+            size_bytes=len(raw_bytes),
+            extracted_text=extracted.extracted_text,
+        )
+    except ValueError as exc:
+        # Per-session limits (count or total bytes) exceeded.
+        return jsonify({"error": str(exc)}), 409
+
+    logger.info(
+        "attachment_uploaded session_id=%s attachment_id=%s kind=%s size=%s",
+        session_id, record.attachment_id, extracted.kind, len(raw_bytes),
+    )
+    return jsonify({"session_id": session_id, **record.to_public_dict()}), 201
+
+
+@app.route("/travel/attachments", methods=["GET"])
+async def travel_attachment_list():
+    """List attachments currently held for a session."""
+    session_id = (request.args.get("session_id") or "").strip()
+    if not session_id:
+        return jsonify({"error": "session_id is required"}), 400
+    records = attachment_store.list_session(session_id)
+    return jsonify(
+        {
+            "session_id": session_id,
+            "attachments": [r.to_public_dict() for r in records],
+        }
+    )
+
+
+@app.route("/travel/attachments/<attachment_id>", methods=["DELETE"])
+async def travel_attachment_delete(attachment_id: str):
+    """Remove a single attachment from a session (used when the user clicks ×)."""
+    session_id = (request.args.get("session_id") or "").strip()
+    if not session_id:
+        return jsonify({"error": "session_id is required"}), 400
+    removed = attachment_store.delete(session_id, attachment_id)
+    if not removed:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"deleted": attachment_id, "session_id": session_id})
+
+
 @app.route("/travel/orchestrate", methods=["POST"])
 async def travel_orchestrate():
     """Routes travel requests to the Foundry workflow endpoint (foundry) or the
@@ -339,6 +458,17 @@ async def travel_orchestrate():
     payload = await request.get_json() or {}
     message = (payload.get("message") or "").strip()
     context = payload.get("context") or {}
+
+    # Attachment plumbing: the client mints a session_id per browser session
+    # and includes attachment_ids returned by /travel/attachments. Both are
+    # optional; when absent the orchestrator behaves exactly as before.
+    session_id = (payload.get("session_id") or "").strip()
+    raw_attachment_ids = payload.get("attachment_ids") or []
+    attachment_ids: list[str] = [
+        str(aid).strip()
+        for aid in raw_attachment_ids
+        if isinstance(aid, (str, int)) and str(aid).strip()
+    ] if isinstance(raw_attachment_ids, list) else []
 
     if not isinstance(context, dict):
         emit_orchestration_metric(
@@ -377,11 +507,41 @@ async def travel_orchestrate():
     # MAF mode: in-process orchestrator that calls the agents defined in Foundry.
     if mode == "maf":
         strategy = (payload.get("strategy") or context.get("orchestration") or "single").lower()
+
+        # Resolve attachment ids -> lightweight dicts the orchestrator can
+        # prepend to the TripPlannerAgent prompt. Unknown / evicted ids are
+        # silently skipped by the store (logged as warnings) so a stale
+        # client-side id never blocks a turn.
+        attachments_for_orchestrator: list[dict] = []
+        if session_id and attachment_ids:
+            records = attachment_store.get_many(session_id, attachment_ids)
+            attachments_for_orchestrator = [
+                {
+                    "attachment_id": r.attachment_id,
+                    "filename": r.filename,
+                    "kind": r.kind,
+                    "text": r.extracted_text,
+                }
+                for r in records
+            ]
+            logger.info(
+                "orchestrate_attachments_resolved session_id=%s requested=%s resolved=%s",
+                session_id, len(attachment_ids), len(attachments_for_orchestrator),
+            )
+
         try:
             if strategy in ("multi", "multi-intent", "parallel"):
-                result = await local_maf_orchestrator.orchestrate_multi(message=message, context=context)
+                result = await local_maf_orchestrator.orchestrate_multi(
+                    message=message,
+                    context=context,
+                    attachments=attachments_for_orchestrator or None,
+                )
             else:
-                result = await local_maf_orchestrator.orchestrate(message=message, context=context)
+                result = await local_maf_orchestrator.orchestrate(
+                    message=message,
+                    context=context,
+                    attachments=attachments_for_orchestrator or None,
+                )
         except FoundryAgentError as exc:
             logger.error("MAF orchestration failed: %s", exc)
             emit_orchestration_metric(

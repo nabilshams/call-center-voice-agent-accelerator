@@ -36,6 +36,20 @@ resource aiAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+// Cognitive Services User -- required for Document Intelligence access via
+// the multi-service AIServices account. Used by the attachment extractor
+// (server/app/handler/attachment_extractor.py) to OCR uploaded PDFs / images
+// for TripPlannerAgent.
+resource cognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aiServicesId, identityPrincipalId, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  scope: aiServicesResource
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
+    principalId: identityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
   name: keyVaultName

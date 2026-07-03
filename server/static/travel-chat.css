@@ -404,66 +404,184 @@ body {
   border-top: 1px solid var(--card-border);
   padding: 0.9rem;
   background: rgba(255, 255, 255, 0.82);
-  display: grid;
-  grid-template-columns: 1fr auto auto;
+  display: flex;
+  flex-direction: column;
   gap: 0.55rem;
+}
+
+/* Framed input pill: textarea on top, action row anchored at the bottom.
+   Purple accent underline appears on focus-within. */
+.composer-box {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.4rem;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--input-border);
+  border-radius: 0.85rem;
+  background: var(--input-bg);
+  padding: 0.55rem 0.7rem 0.5rem;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.composer-box:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 2px 0 0 var(--brand);
+}
+
+.composer-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.composer-actions-left,
+.composer-actions-right {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+/* The attachment strip sits above the framed input. */
+.attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.28rem 0.55rem;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: var(--ink);
+  max-width: 100%;
+}
+
+.attachment-kind {
+  text-transform: uppercase;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.35rem;
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.attachment-size {
+  color: var(--ink-muted, #666);
+  font-size: 0.72rem;
+}
+
+.attachment-warning {
+  color: #b26a00;
+  font-weight: 800;
+  cursor: help;
+}
+
+.attachment-remove {
+  background: transparent;
+  border: 0;
+  padding: 0 0.2rem;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink-muted, #666);
+}
+
+.attachment-remove:hover {
+  color: var(--brand-dark);
 }
 
 .composer textarea {
   width: 100%;
   min-height: 44px;
-  max-height: 160px;
-  resize: vertical;
-  border: 1px solid var(--input-border);
-  border-radius: 0.65rem;
-  padding: 0.62rem 0.72rem;
+  max-height: 200px;
+  resize: none;
+  border: 0;
+  padding: 0.3rem 0.15rem;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: var(--ink);
-  background: var(--input-bg);
+  background: transparent;
 }
 
 .composer textarea:focus {
-  outline: 2px solid var(--brand-ring);
-  border-color: var(--brand);
+  outline: none;
 }
 
-.composer button {
+/* Icon-only action buttons anchored inside the composer box. */
+.composer-icon-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--ink-muted, #666);
   border: 0;
-  border-radius: 0.65rem;
-  padding: 0.62rem 0.82rem;
-  font-size: 0.84rem;
-  font-weight: 700;
+  border-radius: 0.55rem;
   cursor: pointer;
   font-family: inherit;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
-#voiceBtn {
-  background: var(--btn-neutral-bg);
-  color: var(--ink);
-  border: 1px solid var(--input-border);
+.composer-icon-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  color: var(--brand);
 }
 
-#voiceBtn.listening {
-  background: var(--btn-listening-bg);
-  border-color: var(--btn-listening-border);
-  color: var(--btn-listening-text);
+.composer-icon-btn:focus-visible {
+  outline: 2px solid var(--brand-ring);
+  outline-offset: 1px;
 }
 
-#sendBtn {
+.composer-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.composer-icon-btn svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* Primary action (Send) — filled with the brand color. */
+.composer-icon-btn--primary {
   background: var(--brand);
   color: #fff;
 }
 
-#sendBtn:hover {
+.composer-icon-btn--primary:hover:not(:disabled) {
   background: var(--brand-dark);
+  color: #fff;
 }
 
-#sendBtn:disabled,
-#voiceBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+/* Voice button in active/listening state. */
+#voiceBtn.listening {
+  background: var(--btn-listening-bg, color-mix(in srgb, var(--brand) 15%, transparent));
+  color: var(--btn-listening-text, var(--brand));
 }
 
 .notice {
@@ -509,12 +627,8 @@ body {
     max-width: 92%;
   }
 
-  .composer {
-    grid-template-columns: 1fr;
-  }
-
-  .composer button {
-    width: 100%;
+  .composer-box {
+    padding: 0.5rem 0.6rem 0.45rem;
   }
 }
 

@@ -35,6 +35,14 @@ class FoundryAgentError(RuntimeError):
     """
 
 
+# Only agents in this set will receive user-uploaded attachments in their
+# prompt. Everyone else gets a warning log and the attachments are ignored --
+# routing something like "here's my booking PDF, book me a flight" to
+# FlightBookingAgent should not silently inject file text into a slot-fill
+# agent that has no instructions for it.
+AGENTS_ACCEPTING_ATTACHMENTS: set[str] = {"TripPlannerAgent"}
+
+
 @dataclass(frozen=True)
 class AgentDecision:
     route: str
@@ -130,7 +138,13 @@ class MAFTravelOrchestrator:
                 f"Azure AI Foundry agents are unavailable: {self._native_init_error}"
             )
 
-    async def orchestrate(self, message: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def orchestrate(
+        self,
+        message: str,
+        context: dict[str, Any] | None = None,
+        *,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         if not message or not message.strip():
             return {
                 "spoken_reply": "Please tell me what you want help with for your trip.",
@@ -147,7 +161,7 @@ class MAFTravelOrchestrator:
         decision = await self._orchestrator_agent(message=message, context=ctx)
         selected_agent = self.ROUTE_TO_AGENT.get(decision.route, "ConsultantMatchAgent")
         specialist_result = await self._run_specialist_agent(
-            selected_agent, message=message, context=ctx
+            selected_agent, message=message, context=ctx, attachments=attachments,
         )
 
         workflow_trace = [
@@ -181,7 +195,13 @@ class MAFTravelOrchestrator:
             "workflow_trace": workflow_trace,
         }
 
-    async def orchestrate_multi(self, message: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def orchestrate_multi(
+        self,
+        message: str,
+        context: dict[str, Any] | None = None,
+        *,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Multi-Intent orchestration.
 
         Detects one or more intents in a single request, fans the work out to the
@@ -215,9 +235,23 @@ class MAFTravelOrchestrator:
         # them. return_exceptions keeps one failing specialist from taking down the
         # whole turn: failures are captured per-agent and surfaced in the trace
         # instead of disappearing or raising.
+        # Attachments (if any) are only forwarded to agents in
+        # AGENTS_ACCEPTING_ATTACHMENTS -- _run_specialist_agent enforces this,
+        # so passing the same list to every fan-out call is safe.
+        if attachments and not any(
+            a in AGENTS_ACCEPTING_ATTACHMENTS for a in selected_agents
+        ):
+            logger.warning(
+                "attachments_ignored_multi selected_agents=%s attachment_count=%s "
+                "(no attachment-accepting specialist in the fan-out)",
+                selected_agents,
+                len(attachments),
+            )
         raw_results = await asyncio.gather(
             *[
-                self._run_specialist_agent(agent, message=message, context=ctx)
+                self._run_specialist_agent(
+                    agent, message=message, context=ctx, attachments=attachments,
+                )
                 for agent in selected_agents
             ],
             return_exceptions=True,
@@ -380,6 +414,8 @@ class MAFTravelOrchestrator:
         agent_name: str,
         message: str,
         context: dict[str, Any],
+        *,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> AgentResult:
         history_text = self._format_conversation_history(context)
         if self._is_voice_channel(context):
@@ -402,12 +438,59 @@ class MAFTravelOrchestrator:
                 f"{history_text}\n\n"
                 f"Current user request: {message}"
             )
+
+        # Attachments are only injected for agents whose Foundry instructions
+        # know how to consume them. For any other agent we log and drop them
+        # so a stale attachment doesn't quietly poison an unrelated turn.
+        if attachments:
+            if agent_name in AGENTS_ACCEPTING_ATTACHMENTS:
+                prompt = self._prepend_attachments(prompt, attachments)
+                logger.info(
+                    "attachments_injected agent=%s count=%s",
+                    agent_name,
+                    len(attachments),
+                )
+            else:
+                logger.warning(
+                    "attachments_ignored agent=%s count=%s "
+                    "(agent not in AGENTS_ACCEPTING_ATTACHMENTS)",
+                    agent_name,
+                    len(attachments),
+                )
+
         summary = await self._run_native_specialist(agent_name, prompt)
         return AgentResult(
             agent=agent_name,
             summary=summary,
             confidence=0.9,
         )
+
+    @staticmethod
+    def _prepend_attachments(
+        prompt: str, attachments: list[dict[str, Any]]
+    ) -> str:
+        """Front-load attachment text so the agent sees it before the request.
+
+        Each attachment is a dict with at least ``filename`` and ``text`` keys
+        (produced by ``AttachmentStore``). Bounded by ``AttachmentStore`` and
+        ``attachment_extractor`` size caps, so this cannot balloon the prompt
+        unboundedly.
+        """
+        blocks: list[str] = [
+            "The user has attached the following file(s). Treat their contents "
+            "as authoritative context (real dates, names, addresses, booking "
+            "references). Never contradict a value that appears in an "
+            "attachment; if the user's request conflicts with the attachment, "
+            "gently confirm which one to use.\n"
+        ]
+        for att in attachments:
+            filename = att.get("filename") or "unnamed"
+            text = (att.get("text") or "").strip()
+            if not text:
+                continue
+            blocks.append(f"[ATTACHMENT: {filename}]\n{text}\n[END ATTACHMENT]")
+        blocks.append(prompt)
+        return "\n\n".join(blocks)
 
     async def _route_with_orchestrator_agent(self, message: str, context: dict[str, Any]) -> str:
         """Ask the Foundry-defined OrchestratorAgent to classify the request into one route.
