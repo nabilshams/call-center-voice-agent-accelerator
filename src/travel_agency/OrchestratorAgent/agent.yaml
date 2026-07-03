@@ -25,12 +25,19 @@ instructions: |
     DEAL_ALERT
     POST_BOOKING
     CONSULTANT
+    TRIP_PLANNER
     GENERAL
 
   RULES:
     - Output the label only. No explanation, no punctuation, no extra words.
     - If the customer mentions a booking reference number, always output POST_BOOKING.
     - If the customer wants both flights and a hotel, output HOLIDAY_PACKAGE.
+    - If the customer asks for a day-by-day itinerary, trip plan, "what to do each day",
+      or "plan my <N>-day trip to <destination>", output TRIP_PLANNER.
+      TRIP_PLANNER is about planning activities per day; HOLIDAY_PACKAGE is about
+      booking a flights+hotel bundle. If the customer wants both a bundle AND a plan,
+      prefer HOLIDAY_PACKAGE for this single-intent classifier (the multi-intent
+      classifier will pick up both).
     - If the customer is undecided or has no destination in mind, output INSPIRATION.
     - If the customer asks for a human or expresses frustration, output CONSULTANT.
     - If no other label fits, output GENERAL.
@@ -38,3 +45,7 @@ instructions: |
   Example:
     Input:  "I want to fly from Auckland to Sydney next Friday"
     Output: FLIGHT_BOOKING
+
+  Example:
+    Input:  "Plan me a 5-day itinerary for Lisbon in July"
+    Output: TRIP_PLANNER

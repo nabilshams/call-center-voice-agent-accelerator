@@ -42,6 +42,14 @@ class FoundryAgentError(RuntimeError):
 # agent that has no instructions for it.
 AGENTS_ACCEPTING_ATTACHMENTS: set[str] = {"TripPlannerAgent"}
 
+# Foundry hosted agents (deployed via `azd deploy <AgentName>`) cannot be
+# invoked through the standard `/openai/v1/responses` endpoint that
+# ``FoundryAgent`` targets. They must go through the hosted-agent endpoint
+# ``/agents/<name>/endpoint/protocols/openai/responses``. Names in this set
+# are dispatched through ``_run_hosted_agent`` instead of
+# ``_run_foundry_agent``.
+HOSTED_AGENTS: set[str] = {"TripPlannerAgent"}
+
 
 @dataclass(frozen=True)
 class AgentDecision:
@@ -94,6 +102,16 @@ class MAFTravelOrchestrator:
         self._foundry_agent_cls: Any = None
         self._async_credential: Any = None
         self._agent_cache: dict[str, Any] = {}          # name -> FoundryAgent
+        # Hosted-agent plumbing: separate AIProjectClient with
+        # ``allow_preview=True`` (required for hosted-agent OpenAI clients) and
+        # a per-agent AsyncOpenAI cache pointed at each hosted agent's endpoint.
+        self._hosted_project_client: Any = None
+        self._hosted_openai_clients: dict[str, Any] = {}
+        self._hosted_model = (
+            config.get("MAF_MODEL")
+            or config.get("AZURE_OPENAI_CHAT_DEPLOYMENT")
+            or ""
+        )
         self._native_ready = False
         self._native_init_error = ""
 
@@ -346,7 +364,7 @@ class MAFTravelOrchestrator:
             f"Message: {message}\n"
             f"Context: {context}\n"
             "Valid tokens: FLIGHT_BOOKING, HOLIDAY_PACKAGE, CRUISE, TOUR, INSPIRATION, "
-            "POST_BOOKING, CONSULTANT, DEAL_ALERT.\n"
+            "POST_BOOKING, CONSULTANT, DEAL_ALERT, TRIP_PLANNER.\n"
             "Answer with comma-separated tokens only, most relevant first."
         )
         reply = await self._run_foundry_agent("Multi-IntentOrchestrator", prompt)
@@ -504,7 +522,7 @@ class MAFTravelOrchestrator:
             f"Message: {message}\n"
             f"Context: {context}\n"
             "Valid tokens: FLIGHT_BOOKING, HOLIDAY_PACKAGE, CRUISE, TOUR, INSPIRATION, "
-            "POST_BOOKING, CONSULTANT, DEAL_ALERT.\n"
+            "POST_BOOKING, CONSULTANT, DEAL_ALERT, TRIP_PLANNER.\n"
             "Answer with the token only."
         )
         reply = await self._run_foundry_agent("OrchestratorAgent", prompt)
@@ -523,7 +541,53 @@ class MAFTravelOrchestrator:
         # instructions, tools, and behavior stay consistent with what is authored
         # there. There is no code-defined fallback: a specialist that is not
         # present in Foundry is a hard error.
+        if agent_name in HOSTED_AGENTS:
+            return await self._run_hosted_agent(agent_name, prompt)
         return await self._run_foundry_agent(agent_name, prompt)
+
+    async def _run_hosted_agent(self, agent_name: str, prompt: str) -> str:
+        """Run a hosted Foundry agent via its dedicated endpoint.
+
+        Hosted agents (``kind: hosted`` in agent.yaml) run their own container
+        behind ``/api/projects/<project>/agents/<name>/endpoint/protocols/openai/responses``
+        and are NOT reachable via the shared project responses endpoint that
+        prompt agents use. We build a per-agent AsyncOpenAI client pointed at
+        that path (via ``AIProjectClient.get_openai_client(agent_name=...)``
+        with ``allow_preview=True``) and call ``responses.create`` directly.
+        """
+        self._require_native()
+        try:
+            client = self._hosted_openai_clients.get(agent_name)
+            if client is None:
+                if self._hosted_project_client is None:
+                    from azure.ai.projects.aio import AIProjectClient  # type: ignore
+
+                    self._hosted_project_client = AIProjectClient(
+                        endpoint=self._project_endpoint,
+                        credential=self._async_credential,
+                        allow_preview=True,
+                    )
+                client = self._hosted_project_client.get_openai_client(
+                    agent_name=agent_name
+                )
+                self._hosted_openai_clients[agent_name] = client
+
+            # The hosted-agent endpoint identifies the agent (and its model) via
+            # the URL, but the OpenAI Responses SDK still requires a ``model``
+            # argument. Passing the project's default deployment is safe --
+            # the hosted agent uses its own configured model regardless.
+            response = await client.responses.create(
+                model=self._hosted_model or agent_name,
+                input=[{"role": "user", "content": prompt}],
+            )
+            text = getattr(response, "output_text", "") or ""
+            return text.strip()
+        except FoundryAgentError:
+            raise
+        except Exception as exc:
+            raise FoundryAgentError(
+                f"Hosted Foundry agent '{agent_name}' run failed: {exc}"
+            ) from exc
 
     async def _run_foundry_agent(self, agent_name: str, prompt: str) -> str:
         """Run a prompt agent defined in Azure AI Foundry, resolved by name.

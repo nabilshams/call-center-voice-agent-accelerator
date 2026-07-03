@@ -41,6 +41,9 @@ instructions: |
 
     CONSULTANT        - wants to speak to a human
 
+    TRIP_PLANNER      - wants a day-by-day itinerary or trip plan for a
+                        specified destination (what to do each day)
+
     GENERAL           - FAQ, store info, or other general query
 
 
@@ -85,6 +88,18 @@ instructions: |
 
 
 
+    Input:  "Book me flights and a hotel to Bali and plan our 7 days"
+
+    Output: ["HOLIDAY_PACKAGE", "TRIP_PLANNER"]
+
+
+
+    Input:  "Plan me a 5-day itinerary for Lisbon in July"
+
+    Output: ["TRIP_PLANNER"]
+
+
+
   RULES:
 
     - If the message clearly maps to one intent, return an array with one item.
@@ -92,6 +107,14 @@ instructions: |
     - Never return HOLIDAY_PACKAGE and FLIGHT_BOOKING together —
 
       HOLIDAY_PACKAGE already covers flights + hotel.
+
+    - TRIP_PLANNER is for day-by-day itinerary requests. It can co-exist with
+
+      HOLIDAY_PACKAGE, FLIGHT_BOOKING, TOUR, or CRUISE when the customer
+
+      wants both the booking and a plan of what to do each day
+
+      (e.g. "book flights and hotel to Bali and plan our 7 days").
 
     - If CONSULTANT or POST_BOOKING is present, always put it first.
 
