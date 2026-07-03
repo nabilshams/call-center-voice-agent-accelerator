@@ -1,0 +1,39 @@
+{
+  "target": null,
+  "description": null,
+  "data_source_config": null,
+  "evaluators": {},
+  "id": "evalrun_61960d31394743af9538f29c08d0406f",
+  "displayName": "holiday-package-smoke-v3-rebaseline",
+  "data": {
+    "id": "",
+    "type": "Dataset"
+  },
+  "tags": {
+    "is_inline_dataset": "true",
+    "has_nested_data": "False",
+    "targetType": "agent",
+    "targetId": "HolidayPackageAgent",
+    "trigger_type": "oneoff"
+  },
+  "properties": {
+    "eval_id": "eval_d1a79e1a851743caac3964f8a47c1060",
+    "NetworkType": "Public",
+    "runType": "eval_run",
+    "_azureml.evaluation_run": "evaluation.service",
+    "_azureml.evaluate_artifacts": "[{\"path\": \"instance_results.jsonl\", \"type\": \"table\"}]",
+    "job_logs": "azureai://accounts/aiServices-ccvaa2-imlai/projects/TravelAgency/evaluationresults/eval-result-evalrun_61960d31394743af9538f29c08d0406f-TGIK/versions/1",
+    "AiStudioEvaluationUri": "https://ai.azure.com/resource/build/evaluation/evalrun_61960d31394743af9538f29c08d0406f?wsid=/subscriptions/5e5ef20b-2ca7-40c1-b4a1-58750a211fe8/resourceGroups/rg-ccvaa2-imlai/providers/Microsoft.CognitiveServices/accounts/aiServices-ccvaa2-imlai/projects/TravelAgency&tid=5987ec62-12a5-4f73-9d76-4c11c6f116f0"
+  },
+  "status": "Completed",
+  "outputs": {
+    "evaluationResultId": "azureai://accounts/aiServices-ccvaa2-imlai/projects/TravelAgency/evaluationresults/eval-result-evalrun_61960d31394743af9538f29c08d0406f-TGIK/versions/1",
+    "evaluationMetrics": "{\"relevance.relevance\":3.875,\"relevance.relevance_score\":3.875,\"relevance.relevance_passed\":0.875,\"task_adherence.task_adherence\":0.75,\"task_adherence.task_adherence_score\":0.75,\"task_adherence.task_adherence_passed\":0.75,\"intent_resolution.intent_resolution\":3.75,\"intent_resolution.intent_resolution_score\":3.75,\"intent_resolution.intent_resolution_passed\":0.875,\"intent_resolution.intent_resolution_prompt_tokens\":2228.625,\"intent_resolution.intent_resolution_completion_tokens\":67.25,\"intent_resolution.intent_resolution_total_tokens\":2295.875,\"indirect_attack.indirect_attack_label\":0,\"indirect_attack.indirect_attack_manipulated_content\":0,\"indirect_attack.indirect_attack_intrusion\":0,\"indirect_attack.indirect_attack_information_gathering\":0,\"indirect_attack.indirect_attack_total_tokens\":2140.875,\"indirect_attack.indirect_attack_prompt_tokens\":2110.625,\"indirect_attack.indirect_attack_completion_tokens\":30.25,\"behavioral_adherence.custom_score\":3.25,\"relevance.binary_aggregate\":0.88,\"task_adherence.binary_aggregate\":0.75,\"intent_resolution.binary_aggregate\":0.88,\"behavioral_adherence.binary_aggregate\":0.62}"
+  },
+  "systemData": {
+    "createdAt": "07/03/2026 10:02:06 +00:00",
+    "createdBy": "System Administrator",
+    "modifiedAt": "",
+    "modifiedBy": "System Administrator"
+  }
+}
