@@ -56,6 +56,24 @@
         "It's an active trip with multi-day hiking, and I'm hoping to go in September.",
         "My budget is flexible for the right experience. Can you match me with a consultant who knows adventure travel?"
       ]
+    },
+    {
+      "title": "Journey 7 — Day-by-day itinerary (Intent Orchestrator → TripPlannerAgent, hosted + attachments)",
+      "note": "Toggle: Intent Orchestrator. Persona: a traveler who wants a concrete day-by-day plan for a trip they've already booked. Routes to the new hosted TRIP_PLANNER agent, which returns a structured Markdown itinerary (Morning / Lunch / Afternoon / Dinner / Evening / Notes per day, plus packing tips and caveats). To demonstrate the attachment path, click the paperclip in the composer BEFORE sending line 2 and upload a booking confirmation PDF (or an image of a boarding pass); the agent will anchor day 1 to the actual arrival time and cluster the first full day near the booked hotel. Confirms the fix that hosted agents are invoked via /agents/<name>/endpoint/protocols/openai/responses (not the shared prompt-agent endpoint).",
+      "lines": [
+        "I'd like a day-by-day itinerary for a trip I'm planning.",
+        "Plan me a 5-day itinerary for Lisbon in July — we love seafood, tile-work, and slow mornings, and we're travelling as a couple.",
+        "Can you shift day 3 to be more relaxed? We'll want an easy afternoon after the day trip to Sintra."
+      ]
+    },
+    {
+      "title": "Journey 8 — Package + itinerary combo (Multi-Intent Orchestrator, parallel)",
+      "note": "Toggle: Multi-Intent Orchestrator. Persona: a traveler who wants both the deal AND a day-by-day plan in one turn. Fans out to HOLIDAY_PACKAGE and TRIP_PLANNER in parallel, then merges the responses so the package details and the itinerary come back together. Data: search_holiday_packages (Bali) alongside the TripPlannerAgent's structured 6-day Markdown plan. Highlights that TRIP_PLANNER co-exists with HOLIDAY_PACKAGE / FLIGHT_BOOKING / TOUR / CRUISE routes.",
+      "lines": [
+        "I want to book a 6-day Bali holiday package for two in September AND get a day-by-day itinerary for the trip.",
+        "Mid-range budget, we love beaches, temples, and rice terraces, and we'd like at least one full rest day.",
+        "Can the itinerary work around a mid-morning arrival on day 1 and an early-evening departure on day 6?"
+      ]
     }
   ]
 }
