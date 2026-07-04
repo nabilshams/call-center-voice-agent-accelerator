@@ -40,7 +40,15 @@ class FoundryAgentError(RuntimeError):
 # routing something like "here's my booking PDF, book me a flight" to
 # FlightBookingAgent should not silently inject file text into a slot-fill
 # agent that has no instructions for it.
-AGENTS_ACCEPTING_ATTACHMENTS: set[str] = {"TripPlannerAgent"}
+#
+# When adding a new agent here, its Foundry instructions MUST also be updated
+# to describe how to interpret the [ATTACHMENT: filename] ... [END ATTACHMENT]
+# blocks (see TripPlannerAgent/main.py and PostBookingCocierge/agent.yaml for
+# the reference wording, including the injection guard and identity carve-out).
+AGENTS_ACCEPTING_ATTACHMENTS: set[str] = {
+    "TripPlannerAgent",
+    "Post-BookingCocierge",
+}
 
 # Foundry hosted agents (deployed via `azd deploy <AgentName>`) cannot be
 # invoked through the standard `/openai/v1/responses` endpoint that
