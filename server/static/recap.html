@@ -484,8 +484,22 @@
       color: #00a8cc;
     }
   </style>
+  <link rel="stylesheet" href="/static/identity.css?v=3" />
 </head>
-<body>
+<body class="app-shell">
+  <header class="app-header" aria-label="Application header">
+    <a class="app-header-brand" href="/">
+      <span class="app-header-mark" aria-hidden="true">VA</span>
+      <span class="app-header-title">Call Center Voice Agent Accelerator</span>
+    </a>
+    <div class="user-identity guest" data-user-identity aria-live="polite">
+      <span class="user-avatar" aria-hidden="true">G</span>
+      <span class="user-copy">
+        <span class="user-kicker">Session</span>
+        <span class="user-name">Guest</span>
+      </span>
+    </div>
+  </header>
   <div class="container">
     <header>
       <h1>📝 Recap</h1>
@@ -551,6 +565,7 @@
     </footer>
   </div>
 
+  <script src="/static/identity.js?v=1"></script>
   <script>
     let socket = null;
     let mediaStream = null;

@@ -333,8 +333,22 @@
       cursor: not-allowed;
     }
   </style>
+  <link rel="stylesheet" href="/static/identity.css?v=3" />
 </head>
-<body>
+<body class="app-shell">
+  <header class="app-header" aria-label="Application header">
+    <a class="app-header-brand" href="/">
+      <span class="app-header-mark" aria-hidden="true">VA</span>
+      <span class="app-header-title">Call Center Voice Agent Accelerator</span>
+    </a>
+    <div class="user-identity guest" data-user-identity aria-live="polite">
+      <span class="user-avatar" aria-hidden="true">G</span>
+      <span class="user-copy">
+        <span class="user-kicker">Session</span>
+        <span class="user-name">Guest</span>
+      </span>
+    </div>
+  </header>
   <div class="header-icon">🛡️</div>
   <h1>Manage My Health - Incident Support</h1>
   <div class="subtitle">
@@ -395,6 +409,7 @@
     Powered by Azure Voice Live • <a href="https://managemyhealth.co.nz/faqs-cyber-breach/" target="_blank">Official MMH FAQs</a>
   </footer>
 
+  <script src="/static/identity.js?v=1"></script>
   <script>
     let mediaStream, source, processor, socket;
     let audioContext = new AudioContext({ sampleRate: 24000 });

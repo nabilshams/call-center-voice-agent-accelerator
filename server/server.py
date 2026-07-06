@@ -1,5 +1,8 @@
 import asyncio
+import base64
+import binascii
 import io
+import json
 import logging
 import os
 import tempfile
@@ -292,6 +295,59 @@ async def index():
     return await app.send_static_file("index.html")
 
 
+def _claim_value(claims: list[dict], *suffixes: str) -> str:
+    """Return the first matching EasyAuth claim value, checking by type suffix."""
+    for claim in claims:
+        claim_type = str(claim.get("typ") or claim.get("type") or "").lower()
+        if any(claim_type == suffix or claim_type.endswith(suffix) for suffix in suffixes):
+            return str(claim.get("val") or claim.get("value") or "").strip()
+    return ""
+
+
+def _decode_client_principal(value: str) -> dict:
+    if not value:
+        return {}
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        raw = base64.b64decode(padded).decode("utf-8")
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.warning("client_principal_decode_failed error=%s", exc)
+        return {}
+
+
+def _current_user() -> dict:
+    """Return a sanitized identity summary from Azure auth headers, if present."""
+    principal = _decode_client_principal(request.headers.get("X-MS-CLIENT-PRINCIPAL", ""))
+    claims = principal.get("claims") if isinstance(principal.get("claims"), list) else []
+    display_name = (
+        principal.get("userDetails")
+        or request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME", "")
+        or _claim_value(claims, "/name", "name")
+        or _claim_value(claims, "/preferred_username", "preferred_username")
+        or _claim_value(claims, "/emailaddress", "email", "emails")
+    )
+    email = _claim_value(claims, "/emailaddress", "email", "emails")
+    if not email and "@" in str(display_name):
+        email = str(display_name)
+    provider = principal.get("identityProvider") or request.headers.get("X-MS-CLIENT-PRINCIPAL-IDP", "")
+    user_id = principal.get("userId") or request.headers.get("X-MS-CLIENT-PRINCIPAL-ID", "")
+    authenticated = bool(display_name or user_id)
+    return {
+        "authenticated": authenticated,
+        "display_name": str(display_name or "Guest"),
+        "email": str(email or ""),
+        "identity_provider": str(provider or ""),
+    }
+
+
+@app.route("/api/me", methods=["GET"])
+async def current_user():
+    """Expose a small, safe identity summary for browser chrome."""
+    return jsonify(_current_user())
+
+
 @app.route("/travel-support")
 async def travel_support_page():
     """Serves the travel booking and hotel reservations support UI page."""
@@ -483,9 +539,7 @@ async def teams_messages():
 
     body = await request.get_data(as_text=True)
     try:
-        import json as _json
-
-        activity = Activity().deserialize(_json.loads(body))
+        activity = Activity().deserialize(json.loads(body))
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": f"invalid activity: {exc}"}), 400
 

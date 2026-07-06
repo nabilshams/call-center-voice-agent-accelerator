@@ -6,12 +6,26 @@
   <title>Travel Support Chat Assistant</title>
   <!-- Theme (colors/branding) — swap this file to re-theme the page -->
   <link rel="stylesheet" href="/static/theme-wanderlux.css?v=3" />
+  <link rel="stylesheet" href="/static/identity.css?v=3" />
   <!-- Structure (layout/components) — theme-agnostic -->
-  <link rel="stylesheet" href="/static/travel-chat.css?v=4" />
+  <link rel="stylesheet" href="/static/travel-chat.css?v=7" />
   <!-- Shared routing-log styles (used by chat + voice pages) -->
   <link rel="stylesheet" href="/static/routing-log.css?v=3" />
 </head>
-<body>
+<body class="app-shell">
+  <header class="app-header" aria-label="Application header">
+    <a class="app-header-brand" href="/">
+      <span class="app-header-mark" aria-hidden="true">VA</span>
+      <span class="app-header-title">Call Center Voice Agent Accelerator</span>
+    </a>
+    <div class="user-identity guest" data-user-identity aria-live="polite">
+      <span class="user-avatar" aria-hidden="true">G</span>
+      <span class="user-copy">
+        <span class="user-kicker">Session</span>
+        <span class="user-name">Guest</span>
+      </span>
+    </div>
+  </header>
   <main class="shell">
     <aside class="panel">
       <span class="badge">Travel Support</span>
@@ -141,6 +155,7 @@
 
   <!-- Shared routing-log renderer (used by chat + voice pages) -->
   <script src="/static/routing-log.js"></script>
+  <script src="/static/identity.js?v=1"></script>
   <script>
     const messagesEl = document.getElementById("messages");
     const chatForm = document.getElementById("chatForm");

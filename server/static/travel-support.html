@@ -6,12 +6,26 @@
   <title>Travel Booking and Reservations Assistant</title>
   <!-- Theme (colors/branding) — swap this file to re-theme the page -->
   <link rel="stylesheet" href="/static/theme-wanderlux.css" />
+  <link rel="stylesheet" href="/static/identity.css?v=3" />
   <!-- Structure (layout/components) — theme-agnostic -->
-  <link rel="stylesheet" href="/static/travel-support.css" />
+  <link rel="stylesheet" href="/static/travel-support.css?v=2" />
   <!-- Shared routing-log styles (used by chat + voice pages) -->
   <link rel="stylesheet" href="/static/routing-log.css" />
 </head>
-<body>
+<body class="app-shell">
+  <header class="app-header" aria-label="Application header">
+    <a class="app-header-brand" href="/">
+      <span class="app-header-mark" aria-hidden="true">VA</span>
+      <span class="app-header-title">Call Center Voice Agent Accelerator</span>
+    </a>
+    <div class="user-identity guest" data-user-identity aria-live="polite">
+      <span class="user-avatar" aria-hidden="true">G</span>
+      <span class="user-copy">
+        <span class="user-kicker">Session</span>
+        <span class="user-name">Guest</span>
+      </span>
+    </div>
+  </header>
   <main class="shell">
     <aside class="side-panel">
       <div class="header-icon">Wanderlux</div>
@@ -121,6 +135,7 @@
 
   <!-- Shared routing-log renderer (used by chat + voice pages) -->
   <script src="/static/routing-log.js"></script>
+  <script src="/static/identity.js?v=1"></script>
   <script>
     let mediaStream, source, processor, socket;
     let audioContext = new AudioContext({ sampleRate: 24000 });

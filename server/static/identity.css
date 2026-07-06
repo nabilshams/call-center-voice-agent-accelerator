@@ -1,0 +1,152 @@
+/* Shared app header and signed-in user chip for browser surfaces. */
+
+body.app-shell {
+  --app-header-offset: 72px;
+  padding-top: 72px;
+}
+
+.app-header {
+  box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  margin: 0;
+  min-height: 64px;
+  padding: 0.7rem clamp(1rem, 3vw, 2rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: color-mix(in srgb, var(--card, #ffffff) 94%, transparent);
+  border-bottom: 1px solid var(--card-border, rgba(255, 255, 255, 0.14));
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(14px);
+  text-align: left;
+}
+
+.app-header-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  color: var(--ink, #111827);
+  text-decoration: none;
+}
+
+.app-header-mark {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: var(--brand, #00d4ff);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.app-header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.app-header .user-identity {
+  flex: 0 0 auto;
+}
+
+.user-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.42rem 0.62rem;
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.16));
+  border-radius: 999px;
+  background: var(--card, rgba(255, 255, 255, 0.08));
+  color: var(--ink, #111827);
+}
+
+.user-identity.guest {
+  color: var(--muted, #5a5a5a);
+}
+
+.user-avatar {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: var(--brand, #00d4ff);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.user-identity.guest .user-avatar {
+  background: var(--btn-disabled, #6a7280);
+}
+
+.user-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.user-kicker {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hint, #64748b);
+}
+
+.user-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: inherit;
+}
+
+.side-panel .user-identity,
+.panel .user-identity {
+  width: 100%;
+  justify-content: flex-start;
+  border-radius: 8px;
+}
+
+@media (max-width: 760px) {
+  body.app-shell {
+    --app-header-offset: 82px;
+    padding-top: 82px;
+  }
+
+  .app-header {
+    min-height: 74px;
+    align-items: flex-start;
+  }
+
+  .app-header-title {
+    max-width: 42vw;
+    white-space: normal;
+    line-height: 1.15;
+  }
+
+  .user-name {
+    max-width: 120px;
+  }
+}

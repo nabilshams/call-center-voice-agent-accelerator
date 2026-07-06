@@ -18,7 +18,7 @@ body {
   background: var(--bg);
   display: grid;
   place-items: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   color: var(--ink);
 }
 
@@ -32,7 +32,7 @@ body {
   overflow: hidden;
   display: grid;
   grid-template-columns: 320px 1fr;
-  min-height: 80vh;
+  min-height: min(80vh, calc(100dvh - var(--app-header-offset, 0px) - 2.4rem));
 }
 
 .side-panel {
