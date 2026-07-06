@@ -22,6 +22,30 @@
       },
       "mafModel": {
         "value": "${MAF_MODEL=gpt-4o-mini}"
+      },
+      "teamsBotAppId": {
+        "value": "${TEAMS_BOT_APP_ID=}"
+      },
+      "teamsBotAppPassword": {
+        "value": "${TEAMS_BOT_APP_PASSWORD=}"
+      },
+      "teamsBotDisplayName": {
+        "value": "${TEAMS_BOT_DISPLAY_NAME=Wanderlux Trip Planner}"
+      },
+      "teamsBotResourceName": {
+        "value": "${TEAMS_BOT_RESOURCE_NAME=wanderlux-tripplanner}"
+      },
+      "teamsBotAppType": {
+        "value": "${TEAMS_BOT_APP_TYPE=MultiTenant}"
+      },
+      "teamsBotAppTenantId": {
+        "value": "${TEAMS_BOT_APP_TENANT_ID=}"
+      },
+      "teamsBotSpecialistAgent": {
+        "value": "${TEAMS_BOT_SPECIALIST_AGENT=TripPlannerAgent}"
+      },
+      "teamsBotWelcomeMessage": {
+        "value": "${TEAMS_BOT_WELCOME_MESSAGE=}"
       }
     }
   }

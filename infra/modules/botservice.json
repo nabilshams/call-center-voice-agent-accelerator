@@ -1,0 +1,108 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.35.1.17967",
+      "templateHash": "4388683640134686158"
+    }
+  },
+  "parameters": {
+    "botServiceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name for the Azure Bot Service resource."
+      }
+    },
+    "botDisplayName": {
+      "type": "string",
+      "metadata": {
+        "description": "Display name shown to Teams users."
+      }
+    },
+    "messagingEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Public https URL that receives Bot Framework activities, e.g. https://<ca-fqdn>/api/messages."
+      }
+    },
+    "microsoftAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "Entra ID application (client) id used by the bot for auth."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "global",
+      "metadata": {
+        "description": "Azure region for the Bot Service resource. Bot Service is global; the API expects \"global\"."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply."
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "F0",
+      "allowedValues": [
+        "F0",
+        "S1"
+      ],
+      "metadata": {
+        "description": "SKU for the Bot Service (F0 = free / dev, S1 = paid)."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.BotService/botServices",
+      "apiVersion": "2022-09-15",
+      "name": "[parameters('botServiceName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "azurebot",
+      "sku": {
+        "name": "[parameters('skuName')]"
+      },
+      "properties": {
+        "displayName": "[parameters('botDisplayName')]",
+        "endpoint": "[parameters('messagingEndpoint')]",
+        "msaAppId": "[parameters('microsoftAppId')]",
+        "msaAppType": "MultiTenant",
+        "publicNetworkAccess": "Enabled",
+        "disableLocalAuth": false
+      }
+    },
+    {
+      "type": "Microsoft.BotService/botServices/channels",
+      "apiVersion": "2022-09-15",
+      "name": "[format('{0}/{1}', parameters('botServiceName'), 'MsTeamsChannel')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "channelName": "MsTeamsChannel",
+        "properties": {
+          "isEnabled": true
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.BotService/botServices', parameters('botServiceName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "botServiceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.BotService/botServices', parameters('botServiceName'))]"
+    },
+    "botServiceName": {
+      "type": "string",
+      "value": "[parameters('botServiceName')]"
+    }
+  }
+}

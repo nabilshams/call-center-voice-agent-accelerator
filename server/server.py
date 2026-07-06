@@ -430,6 +430,88 @@ async def travel_attachment_delete(attachment_id: str):
     return jsonify({"deleted": attachment_id, "session_id": session_id})
 
 
+# ---------------------------------------------------------------------------
+# Microsoft Teams bot bridge
+# ---------------------------------------------------------------------------
+# Turns the hosted TripPlannerAgent into a Teams bot without a second
+# container. The adapter + bot are lazily constructed on the first inbound
+# ``/api/messages`` request so the server still boots cleanly when
+# MICROSOFT_APP_ID is not set (i.e. Teams integration is disabled).
+_teams_adapter = None
+_teams_bot = None
+_teams_init_error = ""
+
+
+def _ensure_teams_bot():
+    """Idempotently construct the CloudAdapter + TripPlannerBot pair."""
+    global _teams_adapter, _teams_bot, _teams_init_error
+    if _teams_adapter is not None and _teams_bot is not None:
+        return _teams_adapter, _teams_bot
+    if not os.environ.get("MICROSOFT_APP_ID"):
+        _teams_init_error = "MICROSOFT_APP_ID is not set."
+        return None, None
+    try:
+        from app.teams_bot import build_adapter_and_bot
+
+        _teams_adapter, _teams_bot = build_adapter_and_bot(
+            orchestrator=local_maf_orchestrator,
+            attachment_store=attachment_store,
+        )
+        return _teams_adapter, _teams_bot
+    except Exception as exc:  # noqa: BLE001
+        _teams_init_error = str(exc)
+        logging.getLogger("teams_bot").exception("teams_bot_init_failed")
+        return None, None
+
+
+@app.route("/api/messages", methods=["POST"])
+async def teams_messages():
+    """Bot Framework endpoint hit by the Azure Bot Service (Teams channel).
+
+    Returns 503 when the Teams bot is not configured so ``azd`` deploys
+    without Teams still expose a healthy server.
+    """
+    adapter, bot = _ensure_teams_bot()
+    if adapter is None or bot is None:
+        return jsonify({
+            "error": "Teams bot not configured",
+            "detail": _teams_init_error or "MICROSOFT_APP_ID unset",
+        }), 503
+
+    # Lazy import: the bot payload types are only needed on the Teams path.
+    from botbuilder.schema import Activity
+
+    body = await request.get_data(as_text=True)
+    try:
+        import json as _json
+
+        activity = Activity().deserialize(_json.loads(body))
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": f"invalid activity: {exc}"}), 400
+
+    auth_header = request.headers.get("Authorization", "")
+    try:
+        invoke_response = await adapter.process_activity(auth_header, activity, bot.on_turn)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("teams_bot").exception("teams_bot_process_failed")
+        return jsonify({"error": str(exc)}), 500
+
+    if invoke_response is not None:
+        return jsonify(invoke_response.body), invoke_response.status
+    return "", 200
+
+
+@app.route("/api/messages/health", methods=["GET"])
+async def teams_messages_health():
+    """Quick probe for verifying the bot bridge is wired up."""
+    adapter, bot = _ensure_teams_bot()
+    return jsonify({
+        "configured": adapter is not None and bot is not None,
+        "app_id_set": bool(os.environ.get("MICROSOFT_APP_ID")),
+        "init_error": _teams_init_error or None,
+    })
+
+
 @app.route("/travel/orchestrate", methods=["POST"])
 async def travel_orchestrate():
     """Routes travel requests to the Foundry workflow endpoint (foundry) or the

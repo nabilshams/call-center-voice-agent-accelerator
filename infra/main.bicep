@@ -31,6 +31,37 @@ param mafProjectName string = 'TravelAgency'
 @description('Model name for native MAF agents')
 param mafModel string = 'gpt-4o-mini'
 
+// -------- Microsoft Teams bot integration (optional) --------
+// Both values are supplied via `azd env set` after registering an Entra ID
+// application. Leaving them empty deploys the accelerator as before and
+// skips the Teams bridge entirely -- the Container App still serves the
+// web UI + ACS voice paths.
+@description('Entra ID application (client) id for the Teams bot. Leave empty to skip Teams integration.')
+param teamsBotAppId string = ''
+
+@secure()
+@description('Entra ID application client secret for the Teams bot. Required when teamsBotAppId is set.')
+param teamsBotAppPassword string = ''
+
+@description('Display name shown to Teams users when they add the bot.')
+param teamsBotDisplayName string = 'Wanderlux Trip Planner'
+
+@description('Base name for the Azure Bot Service resource. Intentionally decoupled from environmentName so the bot keeps a stable, meaningful name even when reused across environments. Final name: bot-<teamsBotResourceName>-<uniqueSuffix>.')
+param teamsBotResourceName string = 'wanderlux-tripplanner'
+
+@description('Tenant kind for the Teams bot Entra ID app registration. Must match the sign-in audience used when the app was created.')
+@allowed([ 'MultiTenant', 'SingleTenant', 'UserAssignedMSI' ])
+param teamsBotAppType string = 'MultiTenant'
+
+@description('Entra ID tenant id for the Teams bot app. Required when teamsBotAppType is SingleTenant or UserAssignedMSI. Ignored for MultiTenant.')
+param teamsBotAppTenantId string = ''
+
+@description('Foundry prompt agent that the Teams / Web Chat bot fronts. Defaults to TripPlannerAgent; set to FlightBookingAgent, OrchestratorAgent, etc. to change routing.')
+param teamsBotSpecialistAgent string = 'TripPlannerAgent'
+
+@description('Optional welcome message the bot sends on first turn. Leave empty to use the built-in default (Wanderlux Trip Planner). Override when fronting a non-TripPlanner agent.')
+param teamsBotWelcomeMessage string = ''
+
 var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)
 var tags = {'azd-env-name': environmentName }
 var rgName = 'rg-${environmentName}-${uniqueSuffix}'
@@ -184,8 +215,38 @@ module containerapp 'modules/containerapp.bicep' = {
     mafNativeSdkEnabled: 'true'
     mafProjectEndpoint: '${aiServices.outputs.aiFoundryEndpoint}/api/projects/${mafProjectName}'
     mafModel: mafModel
+    microsoftAppId: teamsBotAppId
+    microsoftAppPassword: teamsBotAppPassword
+    microsoftAppType: teamsBotAppType
+    microsoftAppTenantId: teamsBotAppTenantId
+    appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
+    teamsBotSpecialistAgent: teamsBotSpecialistAgent
+    teamsBotWelcomeMessage: teamsBotWelcomeMessage
   }
   dependsOn: [keyvault, RoleAssignments, storage, network]
+}
+
+
+// Azure Bot Service registration + Teams channel. Only deployed when the
+// operator has already registered an Entra ID app and stashed the client id
+// via `azd env set TEAMS_BOT_APP_ID`.
+var botServiceName = take('${abbrs.botServiceBotServices}${teamsBotResourceName}-${uniqueSuffix}', 64)
+
+module botservice 'modules/botservice.bicep' = if (!empty(teamsBotAppId)) {
+  name: 'botservice-deployment'
+  scope: rg
+  params: {
+    botServiceName: botServiceName
+    botDisplayName: teamsBotDisplayName
+    messagingEndpoint: 'https://${containerapp.outputs.containerAppFqdn}/api/messages'
+    microsoftAppId: teamsBotAppId
+    microsoftAppType: teamsBotAppType
+    microsoftAppTenantId: teamsBotAppTenantId
+    appInsightsInstrumentationKey: monitoring.outputs.appInsightsInstrumentationKey
+    appInsightsAppId: monitoring.outputs.appInsightsAppId
+    tags: tags
+  }
+  dependsOn: [ containerapp ]
 }
 
 

@@ -39,10 +39,70 @@ param mafModel string = 'gpt-4o-mini'
 @description('Resource ID of the subnet to use for Container Apps VNet integration. When empty, the environment is created without VNet integration.')
 param infrastructureSubnetId string = ''
 
+@description('Entra ID application (client) id for the Microsoft Teams bot. Leave empty to disable the Teams bridge.')
+param microsoftAppId string = ''
+
+@secure()
+@description('Client secret for the Microsoft Teams bot Entra ID application. Required when microsoftAppId is set.')
+param microsoftAppPassword string = ''
+
+@description('Tenant kind for the Microsoft Teams bot app registration (MultiTenant recommended for Teams).')
+param microsoftAppType string = 'MultiTenant'
+
+@description('Entra ID tenant id for the Teams bot app. Required when microsoftAppType is SingleTenant or UserAssignedMSI.')
+param microsoftAppTenantId string = ''
+
+@description('Application Insights connection string. When non-empty, injected as APPLICATIONINSIGHTS_CONNECTION_STRING so the Python bot + orchestrator can push telemetry events.')
+param appInsightsConnectionString string = ''
+
+@description('Foundry prompt agent name the Teams bot fronts. Defaults to TripPlannerAgent; set to FlightBookingAgent, OrchestratorAgent, etc. to change routing without redeploying code.')
+param teamsBotSpecialistAgent string = 'TripPlannerAgent'
+
+@description('Optional welcome message the bot sends when a user first opens the chat. Leave empty to use the built-in TripPlanner default.')
+param teamsBotWelcomeMessage string = ''
+
 // Helper to sanitize environmentName for valid container app name
 var sanitizedEnvName = toLower(replace(replace(replace(replace(environmentName, ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))
 var containerAppName = take('ca-${sanitizedEnvName}-${uniqueSuffix}', 32)
 var containerEnvName = take('cae-${sanitizedEnvName}-${uniqueSuffix}', 32)
+
+// Teams bot env vars are only injected when the operator has supplied a
+// bot app id; otherwise the container starts fine and /api/messages
+// returns 503 with a diagnostic body.
+var teamsBotEnv = empty(microsoftAppId) ? [] : concat(
+  [
+    {
+      name: 'MICROSOFT_APP_ID'
+      value: microsoftAppId
+    }
+    {
+      name: 'MICROSOFT_APP_TYPE'
+      value: microsoftAppType
+    }
+    {
+      name: 'TEAMS_BOT_SPECIALIST_AGENT'
+      value: teamsBotSpecialistAgent
+    }
+  ],
+  empty(microsoftAppPassword) ? [] : [
+    {
+      name: 'MICROSOFT_APP_PASSWORD'
+      secretRef: 'microsoft-app-password'
+    }
+  ],
+  empty(microsoftAppTenantId) ? [] : [
+    {
+      name: 'MICROSOFT_APP_TENANT_ID'
+      value: microsoftAppTenantId
+    }
+  ],
+  empty(teamsBotWelcomeMessage) ? [] : [
+    {
+      name: 'TEAMS_BOT_WELCOME_MESSAGE'
+      value: teamsBotWelcomeMessage
+    }
+  ]
+)
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = { name: logAnalyticsWorkspaceName }
 
@@ -97,20 +157,30 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
           identity: identityId
         }
       ]
-      secrets: [
-        {
-          name: 'acs-connection-string'
-          keyVaultUrl: acsConnectionStringSecretUri
-          identity: identityId
-        }
-      ]
+      secrets: concat(
+        [
+          {
+            name: 'acs-connection-string'
+            keyVaultUrl: acsConnectionStringSecretUri
+            identity: identityId
+          }
+        ],
+        // Teams bot secret is only mounted when both id + password are set;
+        // Container Apps rejects secrets with empty values.
+        empty(microsoftAppPassword) ? [] : [
+          {
+            name: 'microsoft-app-password'
+            value: microsoftAppPassword
+          }
+        ]
+      )
     }
     template: {
       containers: [
         {
           name: 'main'
           image: !empty(imageName) ? imageName : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-          env: [
+          env: concat([
             {
               name: 'AZURE_VOICE_LIVE_ENDPOINT'
               value: aiServicesEndpoint
@@ -186,7 +256,12 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
               name: 'MAF_MODEL'
               value: mafModel
             }
-          ]
+          ], teamsBotEnv, empty(appInsightsConnectionString) ? [] : [
+            {
+              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+              value: appInsightsConnectionString
+            }
+          ])
           resources: {
             cpu: json('2.0')
             memory: '4.0Gi'

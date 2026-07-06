@@ -10,7 +10,7 @@
 > the **Change log** at the bottom and update the relevant section above.
 > Keep it factual and terse. If a section grows past ~two screens, split it.
 
-**Last verified against code:** 2026-07-03.
+**Last verified against code:** 2026-07-06.
 
 ---
 
@@ -121,17 +121,17 @@ call-center-voice-agent-accelerator/
 │       │   ├── requirements.txt
 │       │   ├── Dockerfile
 │       │   └── README.md
-│       ├── ConsultantMatchAgent/     agent.yaml
+│       ├── ConsultantMatchAgent/     agent.yaml + eval.yaml + dataset.jsonl
 │       ├── CruiseDiscoveryAgent/     agent.yaml + eval.yaml + dataset.jsonl
-│       ├── DealAlertAgent/           agent.yaml
+│       ├── DealAlertAgent/           agent.yaml + eval.yaml + dataset.jsonl
 │       ├── FlightBookingAgent/       agent.yaml + eval.yaml + dataset.jsonl (tool-using)
-│       ├── GeneralFAQAgent/          agent.yaml
+│       ├── GeneralFAQAgent/          agent.yaml + eval.yaml + dataset.jsonl
 │       ├── HolidayPackageAgent/      agent.yaml + eval.yaml + dataset.jsonl
 │       ├── MultiIntentOrchestrator/  agent.yaml
 │       ├── OrchestratorAgent/        agent.yaml
-│       ├── PostBookingCocierge/      agent.yaml (spelling matches Foundry — note #24)
+│       ├── PostBookingCocierge/      agent.yaml + eval.yaml + dataset.jsonl (spelling matches Foundry — note #24)
 │       ├── TourMatchingAgent/        agent.yaml + eval.yaml + dataset.jsonl
-│       └── TravelInspirationAgent/   agent.yaml
+│       └── TravelInspirationAgent/   agent.yaml + eval.yaml + dataset.jsonl
 ├── server/
 │   ├── server.py                     Quart entrypoint; wires routes + handlers
 │   ├── Dockerfile
@@ -282,9 +282,13 @@ src/travel_agency/
 ├── HolidayPackageAgent/              (eval scaffold, 8 rows)
 ├── CruiseDiscoveryAgent/             (eval scaffold, 8 rows)
 ├── TourMatchingAgent/                (eval scaffold, 8 rows)
-└── … (remaining prompt agents: ConsultantMatchAgent, DealAlertAgent,
-     GeneralFAQAgent, MultiIntentOrchestrator, OrchestratorAgent,
-     PostBookingCocierge, TravelInspirationAgent — no eval scaffold yet)
+├── ConsultantMatchAgent/             (eval scaffold, 8 rows)
+├── DealAlertAgent/                   (eval scaffold, 8 rows)
+├── GeneralFAQAgent/                  (eval scaffold, 8 rows)
+├── PostBookingCocierge/              (eval scaffold, 8 rows)
+├── TravelInspirationAgent/           (eval scaffold, 8 rows)
+└── … (router agents: OrchestratorAgent, MultiIntentOrchestrator — no
+  answer-quality eval scaffold yet; these need route-label accuracy suites)
 ```
 
 **eval.yaml shape (prompt-agent flavor):**
@@ -458,11 +462,11 @@ azd deploy TripPlannerAgent              # just the hosted agent
 
 Add newest entries at the top. Include date and short bullet. Reference the section(s) updated.
 
+- **2026-07-06** — Expanded specialist eval scaffolding to five more prompt agents: ConsultantMatchAgent, DealAlertAgent, GeneralFAQAgent, PostBookingCocierge, and TravelInspirationAgent. Each now has `eval.yaml` plus 8 hand-authored `dataset.jsonl` rows using the shared `behavioral_adherence` rubric and built-in baseline evaluators. Remaining unscaffolded prompt agents are the routers (OrchestratorAgent, MultiIntentOrchestrator), which need route-label accuracy suites rather than answer-quality scoring. See [Evaluation scaffolding](#evaluation-scaffolding).
 - **2026-07-03** — **Grouped all TravelAgency agents under `src/travel_agency/`.** Moved 12 agent folders + `_shared/` from `src/<AgentName>/` → `src/travel_agency/<AgentName>/`. Rationale: `src/` will hold multiple Foundry projects long-term; naming the container after the Foundry project (`TravelAgency`) keeps them cleanly separated and makes the intent explicit. Updated all `project:` paths in [azure.yaml](azure.yaml), script docstrings + defaults ([apply_prompt_agents.py](server/scripts/apply_prompt_agents.py), [dump_prompt_agents.py](server/scripts/dump_prompt_agents.py) `--target` now `<repo>/src/travel_agency/`), [local_maf_orchestrator.py](server/app/handler/local_maf_orchestrator.py) comment. Eval-yaml `../_shared/evaluators/...` relative refs stay valid (sibling relationship preserved).
 - **2026-07-03** — **Consolidated all Foundry agents under `src/`.** Moved 11 prompt-agent folders + `_shared/` from `server/agents/` → `src/<AgentName>/` (PascalCase to match Foundry agent names). Registered every agent in [azure.yaml](azure.yaml) as `host: azure.ai.agent` services so `azd ai agent eval run --config eval.yaml` resolves per-agent inside each folder. Publishing prompt-agent versions still goes through `scripts/apply_prompt_agents.py` — do not run `azd deploy <PromptAgent>` for those entries.
 - **2026-07-03** — Applied targeted prompt fixes based on eval findings. Added prominent "CRITICAL RULES" blocks near the top of 3 specialist prompts: **FlightBookingAgent v12→v13** (no stacked questions + explicit frustration-triggers → consultant handoff), **HolidayPackageAgent v2→v3** (inclusions+exclusions always paired, hard max 3 packages, hard max 1 upsell), **CruiseDiscoveryAgent v2→v3** (never accept payment, always end with consultant handoff, first-timer education first). Rules already existed in each prompt but were buried in bullet lists — hoisting to a top-of-prompt CRITICAL block with BAD/GOOD examples gives the LLM highest attention weight for the behaviors that mattered most in the baseline eval. Applied via `python server/scripts/apply_prompt_agents.py src/` (declarative flow).
 - **2026-07-03** — Baseline eval run landed for all 4 specialists against live TravelAgency project. `behavioral_adherence` custom evaluator registered in Foundry catalog as v1 (reusable across future runs). Added `server/scripts/{poll_eval_run.py, download_eval_results.py, analyze_eval_results.py}` — per-agent artifacts under `src/<AgentName>/.foundry/results/travel-agency/<eval-id>/{output_items.jsonl, report.md, scores.csv}`; aggregate scores mirrored to each `agent-metadata.yaml.lastEval.aggregateScores`. Key finding: TourMatchingAgent strongest (100% relevance, 88% task_adherence); FlightBookingAgent weakest but largely because built-in `task_adherence`/`intent_resolution` judges misread correct slot-filling behavior as "off-scope". Custom `behavioral_adherence` is the more accurate signal for our agent contracts. See [Evaluation scaffolding](#evaluation-scaffolding).
 - **2026-07-03** — Added [docs/travel-agency.md](docs/travel-agency.md) (this file) consolidating repo memory notes #1–#41 into a human-readable reference.
 - **2026-07-03** — Eval scaffolding landed for 4 specialists (FlightBooking, HolidayPackage, CruiseDiscovery, TourMatching) co-located with each agent folder; shared `behavioral_adherence` evaluator under `_shared/evaluators/`; `.foundry/` gitignored; loader now skips YAML without `kind:`. See [Evaluation scaffolding](#evaluation-scaffolding).
-- **Earlier (pre-doc):** TripPlannerAgent (hosted) deployed via `azd deploy TripPlannerAgent`, wired into `ROUTE_TO_AGENT["TRIP_PLANNER"]`; all 11 prompt agents pulled to disk via `dump_prompt_agents.py`; portal-metadata filter added to loader; `discover_definitions` filters non-prompt kinds by default. See [Prompt-agent lifecycle](#prompt-agent-lifecycle-source-of-truth-on-disk) and [Foundry project & agent inventory](#foundry-project--agent-inventory).
 - **Earlier (pre-doc):** TripPlannerAgent (hosted) deployed via `azd deploy TripPlannerAgent`, wired into `ROUTE_TO_AGENT["TRIP_PLANNER"]`; all 11 prompt agents pulled to disk via `dump_prompt_agents.py`; portal-metadata filter added to loader; `discover_definitions` filters non-prompt kinds by default. See [Prompt-agent lifecycle](#prompt-agent-lifecycle-source-of-truth-on-disk) and [Foundry project & agent inventory](#foundry-project--agent-inventory).

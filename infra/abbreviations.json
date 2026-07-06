@@ -8,6 +8,7 @@
     "automationAutomationAccounts": "aa-",
     "blueprintBlueprints": "bp-",
     "blueprintBlueprintsArtifacts": "bpa-",
+    "botServiceBotServices": "bot-",
     "cacheRedis": "redis-",
     "cdnProfiles": "cdnp-",
     "cdnProfilesEndpoints": "cdne-",

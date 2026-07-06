@@ -29,5 +29,7 @@ module appInsights 'applicationinsights.bicep' = {
 
 output appInsightsName string = appInsights.name
 output appInsightsConnectionString string = appInsights.outputs.connectionString
+output appInsightsInstrumentationKey string = appInsights.outputs.instrumentationKey
+output appInsightsAppId string = appInsights.outputs.appId
 output logAnalyticsName string = logAnalytics.name
 output logAnalyticsWorkspaceId string = logAnalytics.outputs.id

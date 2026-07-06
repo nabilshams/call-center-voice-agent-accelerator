@@ -1,0 +1,292 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.35.1.17967",
+      "templateHash": "4962179643709048484"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string"
+    },
+    "environmentName": {
+      "type": "string"
+    },
+    "uniqueSuffix": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "object"
+    },
+    "exists": {
+      "type": "bool"
+    },
+    "identityId": {
+      "type": "string"
+    },
+    "identityClientId": {
+      "type": "string"
+    },
+    "containerRegistryName": {
+      "type": "string"
+    },
+    "aiServicesEndpoint": {
+      "type": "string"
+    },
+    "aiServicesResourceId": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "modelDeploymentName": {
+      "type": "string"
+    },
+    "chatDeploymentName": {
+      "type": "string",
+      "defaultValue": "gpt-4o-mini",
+      "metadata": {
+        "description": "Name of the Azure OpenAI chat completions deployment used for server-side LLM calls (e.g. persona inference)."
+      }
+    },
+    "acsConnectionStringSecretUri": {
+      "type": "string"
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string"
+    },
+    "imageName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The name of the container image"
+      }
+    },
+    "speechRegion": {
+      "type": "string",
+      "defaultValue": "[parameters('location')]",
+      "metadata": {
+        "description": "The region for Azure Speech Service (same as AI Services)"
+      }
+    },
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure Storage Account name for transcriptions"
+      }
+    },
+    "storageBlobEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure Storage Blob endpoint for transcriptions"
+      }
+    },
+    "transcriptsContainerName": {
+      "type": "string",
+      "defaultValue": "transcripts",
+      "metadata": {
+        "description": "Azure Storage container name for transcripts"
+      }
+    },
+    "travelOrchestratorMode": {
+      "type": "string",
+      "defaultValue": "maf",
+      "metadata": {
+        "description": "Travel orchestrator mode: foundry | maf"
+      }
+    },
+    "mafNativeSdkEnabled": {
+      "type": "string",
+      "defaultValue": "true",
+      "metadata": {
+        "description": "Enable Native MAF SDK for local orchestrator"
+      }
+    },
+    "mafProjectEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "MAF / AI Foundry project endpoint for native SDK"
+      }
+    },
+    "mafModel": {
+      "type": "string",
+      "defaultValue": "gpt-4o-mini",
+      "metadata": {
+        "description": "Model name used by native MAF agents"
+      }
+    },
+    "infrastructureSubnetId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Resource ID of the subnet to use for Container Apps VNet integration. When empty, the environment is created without VNet integration."
+      }
+    },
+    "microsoftAppId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Entra ID application (client) id for the Microsoft Teams bot. Leave empty to disable the Teams bridge."
+      }
+    },
+    "microsoftAppPassword": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Client secret for the Microsoft Teams bot Entra ID application. Required when microsoftAppId is set."
+      }
+    },
+    "microsoftAppType": {
+      "type": "string",
+      "defaultValue": "MultiTenant",
+      "metadata": {
+        "description": "Tenant kind for the Microsoft Teams bot app registration (MultiTenant recommended for Teams)."
+      }
+    }
+  },
+  "variables": {
+    "sanitizedEnvName": "[toLower(replace(replace(replace(replace(parameters('environmentName'), ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))]",
+    "containerAppName": "[take(format('ca-{0}-{1}', variables('sanitizedEnvName'), parameters('uniqueSuffix')), 32)]",
+    "containerEnvName": "[take(format('cae-{0}-{1}', variables('sanitizedEnvName'), parameters('uniqueSuffix')), 32)]",
+    "teamsBotEnv": "[if(empty(parameters('microsoftAppId')), createArray(), concat(createArray(createObject('name', 'MICROSOFT_APP_ID', 'value', parameters('microsoftAppId')), createObject('name', 'MICROSOFT_APP_TYPE', 'value', parameters('microsoftAppType'))), if(empty(parameters('microsoftAppPassword')), createArray(), createArray(createObject('name', 'MICROSOFT_APP_PASSWORD', 'secretRef', 'microsoft-app-password')))))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('containerEnvName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2022-10-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2022-10-01').primarySharedKey]"
+          }
+        },
+        "vnetConfiguration": "[if(empty(parameters('infrastructureSubnetId')), null(), createObject('infrastructureSubnetId', parameters('infrastructureSubnetId'), 'internal', false()))]"
+      }
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-10-02-preview",
+      "name": "[variables('containerAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[union(parameters('tags'), createObject('azd-service-name', 'app'))]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', parameters('identityId'))]": {}
+        }
+      },
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('containerEnvName'))]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": true,
+            "targetPort": 8000,
+            "transport": "auto"
+          },
+          "registries": [
+            {
+              "server": "[format('{0}.azurecr.io', parameters('containerRegistryName'))]",
+              "identity": "[parameters('identityId')]"
+            }
+          ],
+          "secrets": "[concat(createArray(createObject('name', 'acs-connection-string', 'keyVaultUrl', parameters('acsConnectionStringSecretUri'), 'identity', parameters('identityId'))), if(empty(parameters('microsoftAppPassword')), createArray(), createArray(createObject('name', 'microsoft-app-password', 'value', parameters('microsoftAppPassword')))))]"
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "main",
+              "image": "[if(not(empty(parameters('imageName'))), parameters('imageName'), 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest')]",
+              "env": "[concat(createArray(createObject('name', 'AZURE_VOICE_LIVE_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID', 'value', parameters('identityClientId')), createObject('name', 'AZURE_CLIENT_ID', 'value', parameters('identityClientId')), createObject('name', 'VOICE_LIVE_MODEL', 'value', parameters('modelDeploymentName')), createObject('name', 'ACS_CONNECTION_STRING', 'secretRef', 'acs-connection-string'), createObject('name', 'AZURE_SPEECH_REGION', 'value', parameters('speechRegion')), createObject('name', 'AZURE_SPEECH_RESOURCE_ID', 'value', parameters('aiServicesResourceId')), createObject('name', 'DEBUG_MODE', 'value', 'true'), createObject('name', 'AZURE_STORAGE_ACCOUNT_NAME', 'value', parameters('storageAccountName')), createObject('name', 'AZURE_STORAGE_BLOB_ENDPOINT', 'value', parameters('storageBlobEndpoint')), createObject('name', 'AZURE_TRANSCRIPTS_CONTAINER', 'value', parameters('transcriptsContainerName')), createObject('name', 'AZURE_OPENAI_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'AZURE_OPENAI_CHAT_DEPLOYMENT', 'value', parameters('chatDeploymentName')), createObject('name', 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'TRAVEL_ORCHESTRATOR_MODE', 'value', parameters('travelOrchestratorMode')), createObject('name', 'MAF_NATIVE_SDK_ENABLED', 'value', parameters('mafNativeSdkEnabled')), createObject('name', 'MAF_PROJECT_ENDPOINT', 'value', parameters('mafProjectEndpoint')), createObject('name', 'MAF_MODEL', 'value', parameters('mafModel'))), variables('teamsBotEnv'))]",
+              "resources": {
+                "cpu": "[json('2.0')]",
+                "memory": "4.0Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 10,
+            "rules": [
+              {
+                "name": "http-scaler",
+                "http": {
+                  "metadata": {
+                    "concurrentRequests": "100"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('containerEnvName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('{0}-fetch-image', variables('containerAppName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "exists": {
+            "value": "[parameters('exists')]"
+          },
+          "name": {
+            "value": "[variables('containerAppName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.35.1.17967",
+              "templateHash": "8962726511876670849"
+            }
+          },
+          "parameters": {
+            "exists": {
+              "type": "bool"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "resources": [],
+          "outputs": {
+            "containers": {
+              "type": "array",
+              "value": "[if(parameters('exists'), reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2023-04-01-preview').template.containers, createArray())]"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "containerAppFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', variables('containerAppName')), '2024-10-02-preview').configuration.ingress.fqdn]"
+    },
+    "containerAppId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.App/containerApps', variables('containerAppName'))]"
+    }
+  }
+}

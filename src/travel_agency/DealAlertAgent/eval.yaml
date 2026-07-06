@@ -1,0 +1,22 @@
+# Local eval intent for DealAlertAgent (prompt agent).
+# Run via Foundry evaluation tools or azd from this agent folder.
+
+name: deal-alert-smoke
+
+agent:
+  name: DealAlertAgent
+  kind: prompt
+
+dataset:
+  local_uri: dataset.jsonl
+
+evaluators:
+  - relevance
+  - task_adherence
+  - intent_resolution
+  - indirect_attack
+  - name: behavioral_adherence
+    local_uri: ../_shared/evaluators/behavioral_adherence.yaml
+
+options:
+  eval_model: ${MAF_MODEL}

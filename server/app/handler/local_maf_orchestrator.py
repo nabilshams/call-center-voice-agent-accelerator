@@ -435,6 +435,24 @@ class MAFTravelOrchestrator:
         channel = str(context.get("channel", "")).lower()
         return any(token in channel for token in ("voice", "phone", "acs", "tel"))
 
+    async def run_specialist(
+        self,
+        agent_name: str,
+        *,
+        message: str,
+        context: dict[str, Any],
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> AgentResult:
+        """Invoke a single specialist directly, skipping intent classification.
+
+        Used by surfaces that already know which specialist to reach
+        (e.g. the Teams bot always targets ``TripPlannerAgent``). Attachment
+        gating and hosted-agent dispatch still apply.
+        """
+        return await self._run_specialist_agent(
+            agent_name, message=message, context=context, attachments=attachments,
+        )
+
     async def _run_specialist_agent(
         self,
         agent_name: str,
