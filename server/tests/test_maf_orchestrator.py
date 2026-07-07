@@ -580,6 +580,85 @@ class SpecialistPromptShapeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("(No prior conversation)", prompt)
         self.assertIn("Current user request: book LHR to LAX", prompt)
 
+    async def test_identity_context_is_prepended_when_present(self):
+        orch = _make()
+        recorded: dict[str, str] = {}
+
+        async def _fake_native(name, prompt):
+            recorded["prompt"] = prompt
+            return "reply"
+
+        with patch.object(orch, "_run_native_specialist", side_effect=_fake_native):
+            await orch._run_specialist_agent(
+                "TripPlannerAgent",
+                message="who initiated this request?",
+                context={
+                    "channel": "chat-web",
+                    "requester_identity": {
+                        "display_name": "Ada Lovelace",
+                        "email": "ada@example.com",
+                        "user_id": "user-123",
+                        "identity_provider": "aad",
+                    },
+                    "agent_identity": {
+                        "agent_name": "TripPlannerAgent",
+                        "entra_client_id": "agent-client-id",
+                        "teams_bot_app_id": "bot-app-id",
+                    },
+                },
+            )
+
+        prompt = recorded["prompt"]
+        self.assertTrue(prompt.startswith("[REQUEST IDENTITY]"))
+        self.assertIn("Initiating user display name: Ada Lovelace", prompt)
+        self.assertIn("Initiating user email: ada@example.com", prompt)
+        self.assertIn("Agent Entra client ID: agent-client-id", prompt)
+        self.assertIn("Teams bot Entra app ID: bot-app-id", prompt)
+        self.assertIn("who initiated this request?", prompt)
+
+    async def test_identity_context_log_is_sanitized(self):
+        orch = _make()
+
+        async def _fake_native(name, prompt):
+            return "reply"
+
+        with patch.object(orch, "_run_native_specialist", side_effect=_fake_native):
+            with self.assertLogs("app.handler.local_maf_orchestrator", level="INFO") as logs:
+                await orch._run_specialist_agent(
+                    "TripPlannerAgent",
+                    message="who initiated this request?",
+                    context={
+                        "channel": "teams",
+                        "conversation_id": "teams-conversation-123",
+                        "requester_identity": {
+                            "authenticated": True,
+                            "display_name": "Ada Lovelace",
+                            "email": "ada@example.com",
+                            "user_id": "aad-object-id-1234567890",
+                            "identity_provider": "teams",
+                        },
+                        "agent_identity": {
+                            "agent_name": "TripPlannerAgent",
+                            "entra_client_id": "11111111-2222-3333-4444-agent9999",
+                            "teams_bot_app_id": "aaaaaaaa-bbbb-cccc-dddd-bot8888",
+                        },
+                    },
+                )
+
+        output = "\n".join(logs.output)
+        self.assertIn("travel_identity_context", output)
+        self.assertIn("channel=teams", output)
+        self.assertIn("authenticated=true", output)
+        self.assertIn("identity_provider=teams", output)
+        self.assertIn("agent_name=TripPlannerAgent", output)
+        self.assertIn("agent_entra_client_id_set=true", output)
+        self.assertIn("agent_entra_client_id_suffix=gent9999", output)
+        self.assertIn("teams_bot_app_id_suffix=-bot8888", output)
+        self.assertNotIn("Ada Lovelace", output)
+        self.assertNotIn("ada@example.com", output)
+        self.assertNotIn("aad-object-id-1234567890", output)
+        self.assertNotIn("teams-conversation-123", output)
+
 
 if __name__ == "__main__":
     unittest.main()

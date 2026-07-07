@@ -83,4 +83,6 @@ class IdentityApiTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("identity.css", html)
                 self.assertIn("identity.js", html)
                 if path == "/travel-chat":
-                    self.assertIn("travel-chat.css?v=7", html)
+                    self.assertIn("travel-chat.css?v=8", html)
+                if path == "/travel-support":
+                    self.assertIn("travel-support.css?v=3", html)

@@ -20,6 +20,7 @@ command are the only ways attachments leave scope.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from botbuilder.core import ActivityHandler, TurnContext
@@ -39,6 +40,35 @@ logger = logging.getLogger(__name__)
 
 CLEAR_COMMANDS = {"clear", "reset", "clear files", "clear attachments", "/clear"}
 TRIP_PLANNER_AGENT = "TripPlannerAgent"
+
+
+def _safe_activity_attr(obj, *names: str) -> str:
+    for name in names:
+        value = getattr(obj, name, None)
+        if value:
+            return str(value)
+    return ""
+
+
+def _activity_identity_context(activity: Activity) -> dict:
+    account = getattr(activity, "from_property", None) or getattr(activity, "from", None)
+    return {
+        "requester_identity": {
+            "authenticated": True,
+            "display_name": _safe_activity_attr(account, "name") or "Teams user",
+            "email": _safe_activity_attr(account, "email", "user_principal_name", "userPrincipalName"),
+            "identity_provider": "teams",
+            "user_id": _safe_activity_attr(account, "aad_object_id", "aadObjectId", "id"),
+        },
+        "agent_identity": {
+            "agent_name": TRIP_PLANNER_AGENT,
+            "entra_client_id": os.environ.get(
+                "TRIP_PLANNER_AGENT_ENTRA_CLIENT_ID",
+                os.environ.get("AZURE_CLIENT_ID", os.environ.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID", "")),
+            ),
+            "teams_bot_app_id": os.environ.get("MICROSOFT_APP_ID", ""),
+        },
+    }
 DEFAULT_WELCOME_MESSAGE = (
     "Hi — I'm the Wanderlux Trip Planner. Tell me the destination, "
     "duration, and dates, and I'll draft a day-by-day itinerary. "
@@ -134,7 +164,11 @@ class TripPlannerBot(ActivityHandler):
             result = await self._orchestrator.run_specialist(
                 self._specialist_agent,
                 message=text,
-                context={"channel": "teams", "conversation_id": session_id},
+                context={
+                    "channel": "teams",
+                    "conversation_id": session_id,
+                    **_activity_identity_context(activity),
+                },
                 attachments=attachments or None,
             )
         except Exception as exc:  # noqa: BLE001

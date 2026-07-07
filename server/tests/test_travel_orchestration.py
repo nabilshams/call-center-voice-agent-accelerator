@@ -130,6 +130,42 @@ class TestTravelOrchestration(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(body["selected_agents"], ["FlightBookingAgent"])
             self.assertEqual(maf_orchestrate.await_count, 1)
 
+    async def test_travel_orchestrate_adds_requester_identity_context(self):
+        expected = {
+            "spoken_reply": "Identity available.",
+            "clarification_question": None,
+            "selected_agents": ["TripPlannerAgent"],
+            "specialist_outputs": [],
+            "confidence": 0.9,
+            "next_step": "present_options",
+            "workflow_route": "TRIP_PLANNER",
+            "workflow_trace": [],
+        }
+        self.app.config["TRAVEL_ORCHESTRATOR_MODE"] = "maf"
+
+        with patch.object(
+            local_maf_orchestrator,
+            "orchestrate",
+            new=AsyncMock(return_value=expected),
+        ) as maf_orchestrate:
+            async with self.app.test_client() as client:
+                response = await client.post(
+                    "/travel/orchestrate",
+                    json={"message": "who initiated this request?", "context": {}},
+                    headers={
+                        "X-MS-CLIENT-PRINCIPAL-NAME": "Ada Lovelace",
+                        "X-MS-CLIENT-PRINCIPAL-ID": "aad-user-123",
+                        "X-MS-CLIENT-PRINCIPAL-IDP": "aad",
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        _, kwargs = maf_orchestrate.call_args
+        context = kwargs["context"]
+        self.assertEqual(context["requester_identity"]["display_name"], "Ada Lovelace")
+        self.assertEqual(context["requester_identity"]["user_id"], "aad-user-123")
+        self.assertEqual(context["agent_identity"]["agent_name"], "TripPlannerAgent")
+
     async def test_travel_orchestrate_maf_failure_returns_error(self):
         self.app.config["TRAVEL_ORCHESTRATOR_MODE"] = "maf"
 

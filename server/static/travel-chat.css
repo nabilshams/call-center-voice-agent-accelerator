@@ -36,7 +36,8 @@ body.app-shell {
   background: var(--card);
   border: 1px solid var(--card-border);
   box-shadow: var(--shadow-card);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: grid;
   grid-template-columns: 300px 1fr;
   /* Bounded height so #messages can scroll internally instead of

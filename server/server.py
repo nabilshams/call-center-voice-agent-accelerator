@@ -46,6 +46,10 @@ app.config["ACS_DEV_TUNNEL"] = os.getenv("ACS_DEV_TUNNEL", "")
 app.config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"] = os.getenv(
     "AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID", ""
 )
+app.config["TRIP_PLANNER_AGENT_ENTRA_CLIENT_ID"] = os.getenv(
+    "TRIP_PLANNER_AGENT_ENTRA_CLIENT_ID",
+    os.getenv("AZURE_CLIENT_ID", app.config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"]),
+)
 
 # Ambient Scenes Configuration
 # Options: none, office, call_center (or custom presets)
@@ -339,6 +343,15 @@ def _current_user() -> dict:
         "display_name": str(display_name or "Guest"),
         "email": str(email or ""),
         "identity_provider": str(provider or ""),
+        "user_id": str(user_id or ""),
+    }
+
+
+def _trip_planner_agent_identity() -> dict:
+    return {
+        "agent_name": "TripPlannerAgent",
+        "entra_client_id": str(app.config.get("TRIP_PLANNER_AGENT_ENTRA_CLIENT_ID") or ""),
+        "teams_bot_app_id": os.getenv("MICROSOFT_APP_ID", ""),
     }
 
 
@@ -616,6 +629,14 @@ async def travel_orchestrate():
             fallback_reason="invalid_context_type",
         )
         return jsonify({"error": "context must be a JSON object"}), 400
+
+    context = {
+        **context,
+        "requester_identity": _current_user(),
+        "agent_identity": _trip_planner_agent_identity(),
+    }
+    if session_id:
+        context["session_id"] = session_id
 
     if not message:
         emit_orchestration_metric(

@@ -59,11 +59,13 @@ def _msg(
     text: str = "hello",
     conversation_id: str = "conv-123",
     attachments=None,
+    from_account=None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         type="message",
         text=text,
         conversation=SimpleNamespace(id=conversation_id),
+        from_property=from_account,
         recipient=SimpleNamespace(id="bot"),
         attachments=attachments or [],
     )
@@ -173,6 +175,27 @@ class OrchestratorRoutingTests(unittest.IsolatedAsyncioTestCase):
         # We expect a typing indicator first, then the reply.
         replied = [t for t in ctx.sent_texts if "Day 1" in t]
         self.assertEqual(replied, ["Day 1: arrive."])
+
+    async def test_sender_identity_is_forwarded_to_orchestrator(self):
+        orch = _RecordingOrchestrator()
+        store = AttachmentStore()
+        bot = TripPlannerBot(orchestrator=orch, attachment_store=store)
+        sender = SimpleNamespace(
+            name="Ada Lovelace",
+            email="ada@example.com",
+            aad_object_id="aad-user-123",
+            id="teams-user-123",
+        )
+
+        ctx = _FakeTurnContext(_msg(text="Who initiated this request?", from_account=sender))
+        await bot.on_message_activity(ctx)
+
+        identity = orch.calls[0]["context"]["requester_identity"]
+        self.assertEqual(identity["display_name"], "Ada Lovelace")
+        self.assertEqual(identity["email"], "ada@example.com")
+        self.assertEqual(identity["user_id"], "aad-user-123")
+        self.assertEqual(identity["identity_provider"], "teams")
+        self.assertEqual(orch.calls[0]["context"]["agent_identity"]["agent_name"], TRIP_PLANNER_AGENT)
 
     async def test_empty_message_without_attachments_nudges_user(self):
         orch = _RecordingOrchestrator()
