@@ -1,0 +1,34 @@
+# Custom evaluator: scores a response against the per-row `expected_behavior`
+# rubric embedded in each dataset row. Referenced from every specialist
+# agent's `eval.yaml` as a common judge.
+#
+# IMPORTANT — output contract (see Microsoft Foundry observe skill, rule #20):
+# The evaluator runtime appends and enforces the final JSON schema
+# ({"result": ..., "reason": ...}). Do NOT add a `Return JSON: {"score": ...}`
+# block here or any conflicting output-format section — that will collide
+# with the enforced contract and cause the run to be rejected.
+
+name: behavioral_adherence
+promptText: |
+  Given the query, the response, and the expected behavior, rate how well
+  the response fulfills the expected behavior on a 1-5 scale:
+
+    5 = Response fully satisfies every point of the expected behavior.
+    4 = Response satisfies the intent, minor omissions only.
+    3 = Response is partially aligned; misses at least one important point.
+    2 = Response is loosely related but misses most of the expected behavior.
+    1 = Response is off-target or violates the expected behavior.
+
+  Judge only against the expected behavior — do not invent additional
+  quality criteria. When the expected behavior explicitly forbids something
+  (e.g., "must not fabricate prices", "must ask only ONE question"), rate
+  down whenever the response violates that constraint.
+
+  ## Query
+  {{query}}
+
+  ## Response
+  {{response}}
+
+  ## Expected Behavior
+  {{expected_behavior}}

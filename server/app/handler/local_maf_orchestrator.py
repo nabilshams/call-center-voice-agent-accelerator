@@ -57,7 +57,7 @@ AGENTS_ACCEPTING_ATTACHMENTS: set[str] = {
 # ``/agents/<name>/endpoint/protocols/openai/responses``. Names in this set
 # are dispatched through ``_run_hosted_agent`` instead of
 # ``_run_foundry_agent``.
-HOSTED_AGENTS: set[str] = {"TripPlannerAgent", "UserContextAgent"}
+HOSTED_AGENTS: set[str] = {"TripPlannerAgent", "UserContextAgent", "VITAAgent"}
 
 
 @dataclass(frozen=True)
@@ -93,6 +93,10 @@ class MAFTravelOrchestrator:
         # Hosted Foundry agents -- deployed via `azd deploy <AgentName>`.
         # See src/travel_agency/<AgentName>/{agent.yaml,main.py}.
         "TRIP_PLANNER": "TripPlannerAgent",
+        # VITA: Voice-Enabled On-Road Training Assistant (UC-01).
+        # Delivers hands-free training to on-road staff via voice.
+        # See src/WanderWheelLimited/VITAAgent/{agent.yaml,main.py}.
+        "VITA": "VITAAgent",
     }
 
     def __init__(self, config: dict[str, Any]):

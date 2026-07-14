@@ -54,6 +54,8 @@ class RouteRegistryTests(unittest.TestCase):
         "GENERAL_FAQ": "GeneralFAQAgent",
         "USER_CONTEXT": "UserContextAgent",
         "TRIP_PLANNER": "TripPlannerAgent",
+        # UC-01: VITA — Voice-Enabled On-Road Training Assistant
+        "VITA": "VITAAgent",
     }
 
     def test_all_expected_routes_present(self):
@@ -65,6 +67,10 @@ class RouteRegistryTests(unittest.TestCase):
 
     def test_user_context_route_maps_to_hosted_agent(self):
         agent = MAFTravelOrchestrator.ROUTE_TO_AGENT["USER_CONTEXT"]
+        self.assertIn(agent, HOSTED_AGENTS)
+
+    def test_vita_route_maps_to_hosted_agent(self):
+        agent = MAFTravelOrchestrator.ROUTE_TO_AGENT["VITA"]
         self.assertIn(agent, HOSTED_AGENTS)
 
     def test_all_agent_names_are_unique(self):
