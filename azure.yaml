@@ -38,6 +38,46 @@ services:
               version: 2.0.0
         rai_config:
             rai_policy_name: /subscriptions/5e5ef20b-2ca7-40c1-b4a1-58750a211fe8/resourceGroups/rg-ccvaa2-imlai/providers/Microsoft.CognitiveServices/accounts/aiServices-ccvaa2-imlai/raiPolicies/PIIRedactionGuardrail
+    VITAAgent:
+        project: src/travel_agency/VITAAgent
+        host: azure.ai.agent
+        language: python
+        codeConfiguration:
+            dependencyResolution: remote_build
+            entryPoint: main.py
+            runtime: python_3_13
+        container:
+            resources:
+                cpu: "0.5"
+                memory: 1Gi
+        description: |
+            VITA (Voice-Enabled On-Road Training Assistant) delivers hands-free,
+            conversational training to WanderWheels on-road staff. It guides learners
+            through role- and country-specific modules, runs practice scenarios, rates
+            performance against a rubric, and adapts the pace to the learner's progress.
+        environmentVariables:
+            - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+              value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+            - name: AZURE_SEARCH_ENDPOINT
+              value: ${AZURE_SEARCH_ENDPOINT}
+            - name: COSMOS_ENDPOINT
+              value: ${COSMOS_ENDPOINT}
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              value: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+        kind: hosted
+        metadata:
+            tags:
+                - WanderWheels
+                - On-Road Training
+                - Voice
+                - VITA
+                - Responses Protocol
+        name: VITAAgent
+        protocols:
+            - protocol: responses
+              version: 2.0.0
+        rai_config:
+            rai_policy_name: /subscriptions/5e5ef20b-2ca7-40c1-b4a1-58750a211fe8/resourceGroups/rg-ccvaa2-imlai/providers/Microsoft.CognitiveServices/accounts/aiServices-ccvaa2-imlai/raiPolicies/PIIRedactionGuardrail
     UserContextAgent:
         project: src/travel_agency/UserContextAgent
         host: azure.ai.agent

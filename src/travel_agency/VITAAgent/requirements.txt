@@ -1,0 +1,9 @@
+agent-framework-foundry
+agent-framework-foundry-hosting>=1.0.0a260630
+
+# Optional Azure Monitor / App Insights telemetry (gracefully absent when
+# APPLICATIONINSIGHTS_CONNECTION_STRING is not set).
+azure-monitor-opentelemetry
+
+# debugpy enables local debugging of this agent with the Foundry Toolkit VS Code extension.
+debugpy
