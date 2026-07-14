@@ -48,6 +48,10 @@ Wire `requestScore` to also emit a custom App Insights metric
 Sample on-road SOP content lives in [`/data/vita/wanderwheels_onroad_sop.md`](../../../data/vita/wanderwheels_onroad_sop.md).
 This file is the seed dataset for the `vita-onroad-sop` Azure AI Search index.
 
+Additional sample data:
+- [`/data/vita/vita_rubrics.md`](../../../data/vita/vita_rubrics.md) — call-quality rubrics used by `requestScore`.
+- [`/data/vita/vita_practice_scenarios.md`](../../../data/vita/vita_practice_scenarios.md) — scripted role-play scenarios used by `startPractice`.
+
 ### Loading data into Azure AI Search
 
 1. Create an index named `vita-onroad-sop` with fields: `id`, `role`, `country`,

@@ -11,6 +11,7 @@
 #
 # Deploy with:  azd deploy VITAAgent --no-prompt
 # Local smoke:  azd ai agent run --no-inspector  (then `azd ai agent invoke --local "..."`)
+# Source:       src/WanderWheelLimited/VITAAgent/
 
 import json
 import logging

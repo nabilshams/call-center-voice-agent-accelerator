@@ -39,7 +39,7 @@ services:
         rai_config:
             rai_policy_name: /subscriptions/5e5ef20b-2ca7-40c1-b4a1-58750a211fe8/resourceGroups/rg-ccvaa2-imlai/providers/Microsoft.CognitiveServices/accounts/aiServices-ccvaa2-imlai/raiPolicies/PIIRedactionGuardrail
     VITAAgent:
-        project: src/travel_agency/VITAAgent
+        project: src/WanderWheelLimited/VITAAgent
         host: azure.ai.agent
         language: python
         codeConfiguration:

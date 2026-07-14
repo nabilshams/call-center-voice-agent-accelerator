@@ -95,7 +95,7 @@ class MAFTravelOrchestrator:
         "TRIP_PLANNER": "TripPlannerAgent",
         # VITA: Voice-Enabled On-Road Training Assistant (UC-01).
         # Delivers hands-free training to on-road staff via voice.
-        # See src/travel_agency/VITAAgent/{agent.yaml,main.py}.
+        # See src/WanderWheelLimited/VITAAgent/{agent.yaml,main.py}.
         "VITA": "VITAAgent",
     }
 
