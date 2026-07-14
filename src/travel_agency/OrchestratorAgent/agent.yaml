@@ -25,6 +25,7 @@ instructions: |
     DEAL_ALERT
     POST_BOOKING
     CONSULTANT
+    USER_CONTEXT
     TRIP_PLANNER
     GENERAL
 
@@ -40,6 +41,10 @@ instructions: |
       classifier will pick up both).
     - If the customer is undecided or has no destination in mind, output INSPIRATION.
     - If the customer asks for a human or expresses frustration, output CONSULTANT.
+    - If the customer asks who they are, who initiated the request, what their
+      signed-in profile says, what Microsoft Graph knows about them, their job
+      title, department, manager, office location, user ID, or the agent's Entra
+      identity, output USER_CONTEXT.
     - If no other label fits, output GENERAL.
 
   Example:

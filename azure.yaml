@@ -2,6 +2,8 @@
 
 requiredVersions:
     azd: '>=1.14.0'
+    extensions:
+        azure.ai.agents: '>=1.0.0-beta.5'
 name: voice-live-agent
 metadata:
     template: voice-live-agent@0.1.0
@@ -10,11 +12,63 @@ services:
         project: src/travel_agency/TripPlannerAgent
         host: azure.ai.agent
         language: python
-        config:
-            container:
-                resources:
-                    cpu: "0.5"
-                    memory: 1Gi
+        codeConfiguration:
+            dependencyResolution: remote_build
+            entryPoint: main.py
+            runtime: python_3_13
+        container:
+            resources:
+                cpu: "0.5"
+                memory: 1Gi
+        description: |
+            Generates day-by-day travel itineraries with morning / lunch / afternoon /
+            dinner / evening blocks for a given destination and duration.
+        environmentVariables:
+            - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+              value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+        kind: hosted
+        metadata:
+            tags:
+                - Wanderlux
+                - Trip Planning
+                - Responses Protocol
+        name: TripPlannerAgent
+        protocols:
+            - protocol: responses
+              version: 2.0.0
+        rai_config:
+            rai_policy_name: /subscriptions/5e5ef20b-2ca7-40c1-b4a1-58750a211fe8/resourceGroups/rg-ccvaa2-imlai/providers/Microsoft.CognitiveServices/accounts/aiServices-ccvaa2-imlai/raiPolicies/PIIRedactionGuardrail
+    UserContextAgent:
+        project: src/travel_agency/UserContextAgent
+        host: azure.ai.agent
+        language: python
+        codeConfiguration:
+            dependencyResolution: remote_build
+            entryPoint: main.py
+            runtime: python_3_13
+        container:
+            resources:
+                cpu: "0.5"
+                memory: 1Gi
+        description: |
+            Answers questions about the authenticated requester and, when configured,
+            retrieves additional user profile context from Microsoft Graph.
+        environmentVariables:
+            - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+              value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+        kind: hosted
+        metadata:
+            tags:
+                - Wanderlux
+                - User Context
+                - Microsoft Graph
+                - Responses Protocol
+        name: UserContextAgent
+        protocols:
+            - protocol: responses
+              version: 2.0.0
+        rai_config:
+            rai_policy_name: /subscriptions/5e5ef20b-2ca7-40c1-b4a1-58750a211fe8/resourceGroups/rg-ccvaa2-imlai/providers/Microsoft.CognitiveServices/accounts/aiServices-ccvaa2-imlai/raiPolicies/PIIRedactionGuardrail
     app:
         project: server
         host: containerapp

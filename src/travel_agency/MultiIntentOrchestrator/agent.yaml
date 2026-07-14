@@ -41,6 +41,10 @@ instructions: |
 
     CONSULTANT        - wants to speak to a human
 
+    USER_CONTEXT      - asks about the signed-in user, Microsoft Graph profile,
+              manager, job title, department, office location, user ID,
+              or agent identity
+
     TRIP_PLANNER      - wants a day-by-day itinerary or trip plan for a
                         specified destination (what to do each day)
 
@@ -117,5 +121,8 @@ instructions: |
       (e.g. "book flights and hotel to Bali and plan our 7 days").
 
     - If CONSULTANT or POST_BOOKING is present, always put it first.
+
+    - If USER_CONTEXT is present, include it before travel-planning intents unless
+      CONSULTANT or POST_BOOKING is also present.
 
     - If intent cannot be determined, return ["GENERAL"].

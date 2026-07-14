@@ -28,7 +28,12 @@ from app.handler.attachment_extractor import (
 )
 from app.handler.attachment_store import AttachmentStore
 from app.teams_bot import attachment_fetch as fetch_mod
-from app.teams_bot.handler import CLEAR_COMMANDS, TRIP_PLANNER_AGENT, TripPlannerBot
+from app.teams_bot.handler import (
+    CLEAR_COMMANDS,
+    TRIP_PLANNER_AGENT,
+    USER_CONTEXT_AGENT,
+    TripPlannerBot,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +168,20 @@ class OrchestratorRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(call["message"], "Plan a trip to Lisbon.")
         self.assertEqual(call["context"]["channel"], "teams")
         self.assertEqual(call["context"]["conversation_id"], "conv-123")
+
+    async def test_identity_request_routes_to_user_context_agent(self):
+        orch = _RecordingOrchestrator()
+        store = AttachmentStore()
+        bot = TripPlannerBot(orchestrator=orch, attachment_store=store)
+
+        ctx = _FakeTurnContext(_msg(
+            text="Who initiated this request and what Entra client ID is the agent running as?"
+        ))
+        await bot.on_message_activity(ctx)
+
+        self.assertEqual(len(orch.calls), 1)
+        self.assertEqual(orch.calls[0]["agent"], USER_CONTEXT_AGENT)
+        self.assertEqual(orch.calls[0]["context"]["channel"], "teams")
 
     async def test_agent_summary_is_sent_as_reply(self):
         orch = _RecordingOrchestrator(summary="Day 1: arrive.")

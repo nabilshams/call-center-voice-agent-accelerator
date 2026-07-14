@@ -40,6 +40,29 @@ logger = logging.getLogger(__name__)
 
 CLEAR_COMMANDS = {"clear", "reset", "clear files", "clear attachments", "/clear"}
 TRIP_PLANNER_AGENT = "TripPlannerAgent"
+USER_CONTEXT_AGENT = "UserContextAgent"
+
+
+def _is_user_context_request(text: str) -> bool:
+    normalized = text.lower()
+    identity_terms = (
+        "who am i",
+        "who initiated",
+        "signed-in user",
+        "signed in user",
+        "my profile",
+        "microsoft graph",
+        "graph knows",
+        "job title",
+        "department",
+        "manager",
+        "office location",
+        "user id",
+        "entra client id",
+        "entra id",
+        "agent identity",
+    )
+    return any(term in normalized for term in identity_terms)
 
 
 def _safe_activity_attr(obj, *names: str) -> str:
@@ -160,9 +183,13 @@ class TripPlannerBot(ActivityHandler):
         typing = Activity(type=ActivityTypes.typing)
         await turn_context.send_activity(typing)
 
+        agent_name = (
+            USER_CONTEXT_AGENT if _is_user_context_request(text) else self._specialist_agent
+        )
+
         try:
             result = await self._orchestrator.run_specialist(
-                self._specialist_agent,
+                agent_name,
                 message=text,
                 context={
                     "channel": "teams",
@@ -174,7 +201,7 @@ class TripPlannerBot(ActivityHandler):
         except Exception as exc:  # noqa: BLE001
             logger.exception("teams_orchestrator_failed conversation=%s", session_id)
             await turn_context.send_activity(
-                f"Sorry — I couldn't reach {self._specialist_agent} right now. ({exc})"
+                f"Sorry — I couldn't reach {agent_name} right now. ({exc})"
             )
             return
 

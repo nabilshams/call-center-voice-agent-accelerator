@@ -10,6 +10,8 @@ metadata:
         - Wanderlux
         - Trip Planning
         - Responses Protocol
+rai_config:
+    rai_policy_name: /subscriptions/5e5ef20b-2ca7-40c1-b4a1-58750a211fe8/resourceGroups/rg-ccvaa2-imlai/providers/Microsoft.CognitiveServices/accounts/aiServices-ccvaa2-imlai/raiPolicies/PIIRedactionGuardrail
 protocols:
     - protocol: responses
       version: 2.0.0

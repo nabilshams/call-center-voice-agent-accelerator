@@ -101,6 +101,18 @@
         "Let's go with what the booking says — build the itinerary around Barcelona.",
         "We love vermouth bars, indie boutiques, and a rest afternoon in the middle."
       ]
+    },
+    {
+      "title": "Journey 12 — User context boundaries (Intent Orchestrator → UserContextAgent)",
+      "note": "Toggle: Intent Orchestrator. Persona: an authenticated Teams/Web user checking what identity context is available and whether PII is handled by the hosted-agent guardrail. Routes to UserContextAgent and demonstrates the no prompt-envelope design: the app logs requester context safely for telemetry but does NOT send a [REQUEST IDENTITY] block to the agent. What to look for: (1) when asked who initiated the request, the agent should say trusted requester identity context is not available in this conversation; it should not infer identity from the message or attachments. (2) when asked what identity the agent runs as, it should use get_runtime_agent_identity. (3) when asked for Graph profile/manager details, it should explain that Teams/Web SSO token capture plus OBO Graph access is not configured yet. (4) PIIRedactionGuardrail owns PII handling; contact details and other personal identifiers should be redacted or refused by the guardrail, with no app-side redaction wrapper in the prompt.",
+      "lines": [
+        "Who initiated this request?",
+        "What identity are you running as?",
+        "Can you look up my Microsoft Graph profile, manager, and office location?",
+        "If I attach or type personal details, should you treat that as proof of who signed in?",
+        "I am planning a 4-day work trip to Seattle from September 9 to September 12. Traveler details: Name: Maya Srinivasan; Email: maya.srinivasan@example.com; Phone: +1-415-555-0198; Home address: 742 Evergreen Terrace, Springfield, IL 62704; Company: Contoso; Dietary preference: vegetarian; Hotel preference: near downtown or South Lake Union.",
+        "Please summarize the traveler profile using redacted personal details, then create a day-by-day itinerary."
+      ]
     }
   ]
 }

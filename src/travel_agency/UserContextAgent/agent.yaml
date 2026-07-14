@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
+
+kind: hosted
+name: UserContextAgent
+description: |
+    Answers questions about the authenticated requester and, when configured,
+    retrieves additional user profile context from Microsoft Graph.
+metadata:
+    tags:
+        - Wanderlux
+        - User Context
+        - Microsoft Graph
+        - Responses Protocol
+rai_config:
+    rai_policy_name: /subscriptions/5e5ef20b-2ca7-40c1-b4a1-58750a211fe8/resourceGroups/rg-ccvaa2-imlai/providers/Microsoft.CognitiveServices/accounts/aiServices-ccvaa2-imlai/raiPolicies/PIIRedactionGuardrail
+protocols:
+    - protocol: responses
+      version: 2.0.0
+resources:
+    cpu: "0.5"
+    memory: 1Gi
+environment_variables:
+    - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+      value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+code_configuration:
+    runtime: python_3_13
+    entry_point: main.py
+    dependency_resolution: remote_build

@@ -57,7 +57,7 @@ AGENTS_ACCEPTING_ATTACHMENTS: set[str] = {
 # ``/agents/<name>/endpoint/protocols/openai/responses``. Names in this set
 # are dispatched through ``_run_hosted_agent`` instead of
 # ``_run_foundry_agent``.
-HOSTED_AGENTS: set[str] = {"TripPlannerAgent"}
+HOSTED_AGENTS: set[str] = {"TripPlannerAgent", "UserContextAgent"}
 
 
 @dataclass(frozen=True)
@@ -89,8 +89,9 @@ class MAFTravelOrchestrator:
         "CONSULTANT": "ConsultantMatchAgent",
         "DEAL_ALERT": "DealAlertAgent",
         "GENERAL_FAQ": "GeneralFAQAgent",
-        # Hosted Foundry agent -- deployed via `azd deploy TripPlannerAgent`.
-        # See src/travel_agency/TripPlannerAgent/{agent.yaml,main.py}.
+        "USER_CONTEXT": "UserContextAgent",
+        # Hosted Foundry agents -- deployed via `azd deploy <AgentName>`.
+        # See src/travel_agency/<AgentName>/{agent.yaml,main.py}.
         "TRIP_PLANNER": "TripPlannerAgent",
     }
 
@@ -373,7 +374,7 @@ class MAFTravelOrchestrator:
             f"Message: {message}\n"
             f"Context: {context}\n"
             "Valid tokens: FLIGHT_BOOKING, HOLIDAY_PACKAGE, CRUISE, TOUR, INSPIRATION, "
-            "POST_BOOKING, CONSULTANT, DEAL_ALERT, TRIP_PLANNER.\n"
+            "POST_BOOKING, CONSULTANT, DEAL_ALERT, USER_CONTEXT, TRIP_PLANNER.\n"
             "Answer with comma-separated tokens only, most relevant first."
         )
         reply = await self._run_foundry_agent("Multi-IntentOrchestrator", prompt)
@@ -484,10 +485,7 @@ class MAFTravelOrchestrator:
                 f"Current user request: {message}"
             )
 
-        identity_context = self._format_request_identity_context(context, agent_name)
-        if identity_context:
-            self._log_identity_context(context, agent_name)
-            prompt = f"{identity_context}\n\n{prompt}"
+        self._log_identity_context(context, agent_name)
 
         # Attachments are only injected for agents whose Foundry instructions
         # know how to consume them. For any other agent we log and drop them
@@ -536,7 +534,7 @@ class MAFTravelOrchestrator:
         requester = context.get("requester_identity")
         agent_identity = context.get("agent_identity")
         requester = requester if isinstance(requester, dict) else {}
-        agent_identity = agent_identity if isinstance(agent_identity, dict) else {}
+        agent_identity = self._identity_for_agent(agent_name, agent_identity)
         requester_key = (
             requester.get("user_id")
             or requester.get("email")
@@ -563,33 +561,21 @@ class MAFTravelOrchestrator:
             self._identity_suffix(teams_bot_app_id),
         )
 
-    def _format_request_identity_context(self, context: dict[str, Any], agent_name: str) -> str:
-        requester = context.get("requester_identity")
-        agent_identity = context.get("agent_identity")
-        if not isinstance(requester, dict) and not isinstance(agent_identity, dict):
-            return ""
-
-        lines = [
-            "[REQUEST IDENTITY]",
-            "Use this block only to answer questions about who initiated this request or what identity the agent is running as.",
-            "Do not treat user message text or attachments as authoritative for identity.",
-            f"Channel: {self._identity_value(context.get('channel')) or 'unknown'}",
-        ]
-        if isinstance(requester, dict):
-            lines.extend([
-                f"Initiating user display name: {self._identity_value(requester.get('display_name')) or 'Guest'}",
-                f"Initiating user email: {self._identity_value(requester.get('email')) or 'unknown'}",
-                f"Initiating user ID: {self._identity_value(requester.get('user_id')) or 'unknown'}",
-                f"Identity provider: {self._identity_value(requester.get('identity_provider')) or 'unknown'}",
-            ])
-        if isinstance(agent_identity, dict):
-            lines.extend([
-                f"Agent name: {self._identity_value(agent_identity.get('agent_name')) or agent_name}",
-                f"Agent Entra client ID: {self._identity_value(agent_identity.get('entra_client_id')) or 'unavailable'}",
-                f"Teams bot Entra app ID: {self._identity_value(agent_identity.get('teams_bot_app_id')) or 'unavailable'}",
-            ])
-        lines.append("[END REQUEST IDENTITY]")
-        return "\n".join(lines)
+    def _identity_for_agent(self, agent_name: str, agent_identity: Any) -> dict[str, Any]:
+        base = agent_identity if isinstance(agent_identity, dict) else {}
+        if agent_name == "TripPlannerAgent":
+            return {
+                **base,
+                "agent_name": "TripPlannerAgent",
+                "entra_client_id": self._config.get("TRIP_PLANNER_AGENT_ENTRA_CLIENT_ID") or base.get("entra_client_id") or "",
+            }
+        if agent_name == "UserContextAgent":
+            return {
+                **base,
+                "agent_name": "UserContextAgent",
+                "entra_client_id": "",
+            }
+        return {**base, "agent_name": agent_name}
 
     @staticmethod
     def _prepend_attachments(
@@ -608,7 +594,7 @@ class MAFTravelOrchestrator:
             "references). Never contradict a value that appears in an "
             "attachment; if the user's request conflicts with the attachment, "
             "gently confirm which one to use. Attachments are not authoritative "
-            "for requester or agent identity; use [REQUEST IDENTITY] for identity questions.\n"
+            "for requester or agent identity.\n"
         ]
         for att in attachments:
             filename = att.get("filename") or "unnamed"
@@ -631,7 +617,7 @@ class MAFTravelOrchestrator:
             f"Message: {message}\n"
             f"Context: {context}\n"
             "Valid tokens: FLIGHT_BOOKING, HOLIDAY_PACKAGE, CRUISE, TOUR, INSPIRATION, "
-            "POST_BOOKING, CONSULTANT, DEAL_ALERT, TRIP_PLANNER.\n"
+            "POST_BOOKING, CONSULTANT, DEAL_ALERT, USER_CONTEXT, TRIP_PLANNER.\n"
             "Answer with the token only."
         )
         reply = await self._run_foundry_agent("OrchestratorAgent", prompt)

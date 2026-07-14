@@ -52,6 +52,7 @@ class RouteRegistryTests(unittest.TestCase):
         "CONSULTANT": "ConsultantMatchAgent",
         "DEAL_ALERT": "DealAlertAgent",
         "GENERAL_FAQ": "GeneralFAQAgent",
+        "USER_CONTEXT": "UserContextAgent",
         "TRIP_PLANNER": "TripPlannerAgent",
     }
 
@@ -60,6 +61,10 @@ class RouteRegistryTests(unittest.TestCase):
 
     def test_trip_planner_route_maps_to_hosted_agent(self):
         agent = MAFTravelOrchestrator.ROUTE_TO_AGENT["TRIP_PLANNER"]
+        self.assertIn(agent, HOSTED_AGENTS)
+
+    def test_user_context_route_maps_to_hosted_agent(self):
+        agent = MAFTravelOrchestrator.ROUTE_TO_AGENT["USER_CONTEXT"]
         self.assertIn(agent, HOSTED_AGENTS)
 
     def test_all_agent_names_are_unique(self):
@@ -609,12 +614,13 @@ class SpecialistPromptShapeTests(unittest.IsolatedAsyncioTestCase):
             )
 
         prompt = recorded["prompt"]
-        self.assertTrue(prompt.startswith("[REQUEST IDENTITY]"))
-        self.assertIn("Initiating user display name: Ada Lovelace", prompt)
-        self.assertIn("Initiating user email: ada@example.com", prompt)
-        self.assertIn("Agent Entra client ID: agent-client-id", prompt)
-        self.assertIn("Teams bot Entra app ID: bot-app-id", prompt)
-        self.assertIn("who initiated this request?", prompt)
+        self.assertEqual(prompt, "who initiated this request?")
+        self.assertNotIn("[REQUEST IDENTITY]", prompt)
+        self.assertNotIn("Ada Lovelace", prompt)
+        self.assertNotIn("ada@example.com", prompt)
+        self.assertNotIn("user-123", prompt)
+        self.assertNotIn("agent-client-id", prompt)
+        self.assertNotIn("bot-app-id", prompt)
 
     async def test_identity_context_log_is_sanitized(self):
         orch = _make()
@@ -658,6 +664,52 @@ class SpecialistPromptShapeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("ada@example.com", output)
         self.assertNotIn("aad-object-id-1234567890", output)
         self.assertNotIn("teams-conversation-123", output)
+
+    async def test_user_context_agent_prompt_minimizes_requester_identity(self):
+        orch = _make()
+        recorded: dict[str, str] = {}
+
+        async def _fake_native(name, prompt):
+            recorded["prompt"] = prompt
+            return "reply"
+
+        with patch.object(orch, "_run_native_specialist", side_effect=_fake_native):
+            await orch._run_specialist_agent(
+                "UserContextAgent",
+                message=(
+                    "Who initiated this request? My backup phone is +1 (425) 555-0100 "
+                    "and I live at 123 Market Street."
+                ),
+                context={
+                    "channel": "teams",
+                    "requester_identity": {
+                        "authenticated": True,
+                        "display_name": "Ada Lovelace",
+                        "email": "ada@example.com",
+                        "user_id": "aad-object-id-1234567890",
+                        "identity_provider": "teams",
+                    },
+                    "agent_identity": {
+                        "agent_name": "TripPlannerAgent",
+                        "entra_client_id": "11111111-2222-3333-4444-agent9999",
+                        "teams_bot_app_id": "aaaaaaaa-bbbb-cccc-dddd-bot8888",
+                    },
+                },
+            )
+
+        prompt = recorded["prompt"]
+        self.assertNotIn("[REQUEST IDENTITY]", prompt)
+        self.assertNotIn("Initiating user authenticated", prompt)
+        self.assertNotIn("Identity provider: teams", prompt)
+        self.assertNotIn("Requester personal fields", prompt)
+        self.assertNotIn("diagnostic-only infrastructure identifiers", prompt)
+        self.assertNotIn("Agent Entra client ID", prompt)
+        self.assertNotIn("Teams bot Entra app ID", prompt)
+        self.assertNotIn("Ada Lovelace", prompt)
+        self.assertNotIn("ada@example.com", prompt)
+        self.assertNotIn("aad-object-id-1234567890", prompt)
+        self.assertIn("+1 (425) 555-0100", prompt)
+        self.assertIn("123 Market Street", prompt)
 
 
 if __name__ == "__main__":

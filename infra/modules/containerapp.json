@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.35.1.17967",
-      "templateHash": "4962179643709048484"
+      "templateHash": "5182093745696263975"
     }
   },
   "parameters": {
@@ -146,13 +146,41 @@
       "metadata": {
         "description": "Tenant kind for the Microsoft Teams bot app registration (MultiTenant recommended for Teams)."
       }
+    },
+    "microsoftAppTenantId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Entra ID tenant id for the Teams bot app. Required when microsoftAppType is SingleTenant or UserAssignedMSI."
+      }
+    },
+    "appInsightsConnectionString": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Application Insights connection string. When non-empty, injected as APPLICATIONINSIGHTS_CONNECTION_STRING so the Python bot + orchestrator can push telemetry events."
+      }
+    },
+    "teamsBotSpecialistAgent": {
+      "type": "string",
+      "defaultValue": "TripPlannerAgent",
+      "metadata": {
+        "description": "Foundry prompt agent name the Teams bot fronts. Defaults to TripPlannerAgent; set to FlightBookingAgent, OrchestratorAgent, etc. to change routing without redeploying code."
+      }
+    },
+    "teamsBotWelcomeMessage": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional welcome message the bot sends when a user first opens the chat. Leave empty to use the built-in TripPlanner default."
+      }
     }
   },
   "variables": {
     "sanitizedEnvName": "[toLower(replace(replace(replace(replace(parameters('environmentName'), ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))]",
     "containerAppName": "[take(format('ca-{0}-{1}', variables('sanitizedEnvName'), parameters('uniqueSuffix')), 32)]",
     "containerEnvName": "[take(format('cae-{0}-{1}', variables('sanitizedEnvName'), parameters('uniqueSuffix')), 32)]",
-    "teamsBotEnv": "[if(empty(parameters('microsoftAppId')), createArray(), concat(createArray(createObject('name', 'MICROSOFT_APP_ID', 'value', parameters('microsoftAppId')), createObject('name', 'MICROSOFT_APP_TYPE', 'value', parameters('microsoftAppType'))), if(empty(parameters('microsoftAppPassword')), createArray(), createArray(createObject('name', 'MICROSOFT_APP_PASSWORD', 'secretRef', 'microsoft-app-password')))))]"
+    "teamsBotEnv": "[if(empty(parameters('microsoftAppId')), createArray(), concat(createArray(createObject('name', 'MICROSOFT_APP_ID', 'value', parameters('microsoftAppId')), createObject('name', 'MICROSOFT_APP_TYPE', 'value', parameters('microsoftAppType')), createObject('name', 'TEAMS_BOT_SPECIALIST_AGENT', 'value', parameters('teamsBotSpecialistAgent'))), if(empty(parameters('microsoftAppPassword')), createArray(), createArray(createObject('name', 'MICROSOFT_APP_PASSWORD', 'secretRef', 'microsoft-app-password'))), if(empty(parameters('microsoftAppTenantId')), createArray(), createArray(createObject('name', 'MICROSOFT_APP_TENANT_ID', 'value', parameters('microsoftAppTenantId')))), if(empty(parameters('teamsBotWelcomeMessage')), createArray(), createArray(createObject('name', 'TEAMS_BOT_WELCOME_MESSAGE', 'value', parameters('teamsBotWelcomeMessage'))))))]"
   },
   "resources": [
     {
@@ -206,7 +234,7 @@
             {
               "name": "main",
               "image": "[if(not(empty(parameters('imageName'))), parameters('imageName'), 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest')]",
-              "env": "[concat(createArray(createObject('name', 'AZURE_VOICE_LIVE_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID', 'value', parameters('identityClientId')), createObject('name', 'AZURE_CLIENT_ID', 'value', parameters('identityClientId')), createObject('name', 'VOICE_LIVE_MODEL', 'value', parameters('modelDeploymentName')), createObject('name', 'ACS_CONNECTION_STRING', 'secretRef', 'acs-connection-string'), createObject('name', 'AZURE_SPEECH_REGION', 'value', parameters('speechRegion')), createObject('name', 'AZURE_SPEECH_RESOURCE_ID', 'value', parameters('aiServicesResourceId')), createObject('name', 'DEBUG_MODE', 'value', 'true'), createObject('name', 'AZURE_STORAGE_ACCOUNT_NAME', 'value', parameters('storageAccountName')), createObject('name', 'AZURE_STORAGE_BLOB_ENDPOINT', 'value', parameters('storageBlobEndpoint')), createObject('name', 'AZURE_TRANSCRIPTS_CONTAINER', 'value', parameters('transcriptsContainerName')), createObject('name', 'AZURE_OPENAI_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'AZURE_OPENAI_CHAT_DEPLOYMENT', 'value', parameters('chatDeploymentName')), createObject('name', 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'TRAVEL_ORCHESTRATOR_MODE', 'value', parameters('travelOrchestratorMode')), createObject('name', 'MAF_NATIVE_SDK_ENABLED', 'value', parameters('mafNativeSdkEnabled')), createObject('name', 'MAF_PROJECT_ENDPOINT', 'value', parameters('mafProjectEndpoint')), createObject('name', 'MAF_MODEL', 'value', parameters('mafModel'))), variables('teamsBotEnv'))]",
+              "env": "[concat(createArray(createObject('name', 'AZURE_VOICE_LIVE_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID', 'value', parameters('identityClientId')), createObject('name', 'AZURE_CLIENT_ID', 'value', parameters('identityClientId')), createObject('name', 'VOICE_LIVE_MODEL', 'value', parameters('modelDeploymentName')), createObject('name', 'ACS_CONNECTION_STRING', 'secretRef', 'acs-connection-string'), createObject('name', 'AZURE_SPEECH_REGION', 'value', parameters('speechRegion')), createObject('name', 'AZURE_SPEECH_RESOURCE_ID', 'value', parameters('aiServicesResourceId')), createObject('name', 'DEBUG_MODE', 'value', 'true'), createObject('name', 'AZURE_STORAGE_ACCOUNT_NAME', 'value', parameters('storageAccountName')), createObject('name', 'AZURE_STORAGE_BLOB_ENDPOINT', 'value', parameters('storageBlobEndpoint')), createObject('name', 'AZURE_TRANSCRIPTS_CONTAINER', 'value', parameters('transcriptsContainerName')), createObject('name', 'AZURE_OPENAI_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'AZURE_OPENAI_CHAT_DEPLOYMENT', 'value', parameters('chatDeploymentName')), createObject('name', 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', 'value', parameters('aiServicesEndpoint')), createObject('name', 'TRAVEL_ORCHESTRATOR_MODE', 'value', parameters('travelOrchestratorMode')), createObject('name', 'MAF_NATIVE_SDK_ENABLED', 'value', parameters('mafNativeSdkEnabled')), createObject('name', 'MAF_PROJECT_ENDPOINT', 'value', parameters('mafProjectEndpoint')), createObject('name', 'MAF_MODEL', 'value', parameters('mafModel'))), variables('teamsBotEnv'), if(empty(parameters('appInsightsConnectionString')), createArray(), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')))))]",
               "resources": {
                 "cpu": "[json('2.0')]",
                 "memory": "4.0Gi"
@@ -215,17 +243,7 @@
           ],
           "scale": {
             "minReplicas": 1,
-            "maxReplicas": 10,
-            "rules": [
-              {
-                "name": "http-scaler",
-                "http": {
-                  "metadata": {
-                    "concurrentRequests": "100"
-                  }
-                }
-              }
-            ]
+            "maxReplicas": 10
           }
         }
       },

@@ -10,7 +10,7 @@
 > the **Change log** at the bottom and update the relevant section above.
 > Keep it factual and terse. If a section grows past ~two screens, split it.
 
-**Last verified against code:** 2026-07-06.
+**Last verified against code:** 2026-07-08.
 
 ---
 
@@ -21,7 +21,7 @@
 3. [Directory map](#directory-map)
 4. [Foundry project & agent inventory](#foundry-project--agent-inventory)
 5. [Prompt-agent lifecycle (source-of-truth on disk)](#prompt-agent-lifecycle-source-of-truth-on-disk)
-6. [Hosted agent (TripPlannerAgent)](#hosted-agent-tripplanneragent)
+6. [Hosted agents](#hosted-agents)
 7. [Evaluation scaffolding](#evaluation-scaffolding)
 8. [Configuration & environment variables](#configuration--environment-variables)
 9. [Local dev cheat sheet](#local-dev-cheat-sheet)
@@ -183,7 +183,7 @@ call-center-voice-agent-accelerator/
 - **Endpoint:** `https://domain-ccvaa2-imlai.services.ai.azure.com/api/projects/TravelAgency` (custom subdomain — NOT the account-name subdomain).
 - **Judge/inference model:** `gpt-4o-mini` (env var `MAF_MODEL`, referenced as `${MAF_MODEL}` in all YAML).
 
-### Agent inventory (11 prompt agents + 1 hosted agent)
+### Agent inventory (11 prompt agents + 2 hosted agents)
 
 All agents live under [src/travel_agency/](src/travel_agency/) — folder name matches the Foundry agent name.
 
@@ -201,16 +201,17 @@ All agents live under [src/travel_agency/](src/travel_agency/) — folder name m
 | 10 | `DealAlertAgent` | `DealAlertAgent/` | Current deals & promotions | prompt |
 | 11 | `GeneralFAQAgent` | `GeneralFAQAgent/` | Payments, gift cards, insurance, app help, policies, advisories | prompt |
 | 12 | `TripPlannerAgent` | `TripPlannerAgent/` | Multi-day itinerary planning (hosted) | hosted |
+| 13 | `UserContextAgent` | `UserContextAgent/` | Authenticated requester identity and future Graph profile lookup (hosted) | hosted |
 
 `ROUTE_TO_AGENT` mapping in [local_maf_orchestrator.py](server/app/handler/local_maf_orchestrator.py) must stay in sync with the Foundry side — agent names are keys.
 
-**Router-side gotcha:** For any new specialist route (e.g., `TRIP_PLANNER`, `GENERAL_FAQ`) to actually be selected, both `OrchestratorAgent` and `Multi-IntentOrchestrator` prompts in Foundry must be updated to emit that token. Adding a code-side mapping alone is not enough.
+**Router-side gotcha:** For any new specialist route (e.g., `TRIP_PLANNER`, `GENERAL_FAQ`, `USER_CONTEXT`) to actually be selected, both `OrchestratorAgent` and `Multi-IntentOrchestrator` prompts in Foundry must be updated to emit that token. Adding a code-side mapping alone is not enough.
 
 ---
 
 ## Prompt-agent lifecycle (source-of-truth on disk)
 
-Prompt agents live under [src/travel_agency/](src/travel_agency/) as `<AgentName>/agent.yaml` alongside the hosted [src/travel_agency/TripPlannerAgent/](src/travel_agency/TripPlannerAgent/). The `src/travel_agency/` folder groups every agent that belongs to the TravelAgency Foundry project. Two scripts manage round-trip with Foundry:
+Prompt agents live under [src/travel_agency/](src/travel_agency/) as `<AgentName>/agent.yaml` alongside hosted agents such as [src/travel_agency/TripPlannerAgent/](src/travel_agency/TripPlannerAgent/) and [src/travel_agency/UserContextAgent/](src/travel_agency/UserContextAgent/). The `src/travel_agency/` folder groups every agent that belongs to the TravelAgency Foundry project. Two scripts manage round-trip with Foundry:
 
 ### Push local → Foundry
 
@@ -255,7 +256,7 @@ Both require env vars `FOUNDRY_ADMIN_ENABLED=true`, non-empty `ADMIN_API_KEY`, a
 
 ---
 
-## Hosted agent (TripPlannerAgent)
+## Hosted agents
 
 Different lifecycle from the prompt agents:
 - Lives at [src/travel_agency/TripPlannerAgent/](src/travel_agency/TripPlannerAgent/) with its own `agent.yaml`, `main.py`, `requirements.txt`, `Dockerfile`, `.agentignore`.
@@ -263,6 +264,13 @@ Different lifecycle from the prompt agents:
 - Deploys with `azd deploy TripPlannerAgent`.
 - Has 4 tool stubs (Places / Bookings / Weather / CustomerStore) — env vars are commented out in `agent.yaml`, tools not yet integrated.
 - Router mapping exists (`ROUTE_TO_AGENT["TRIP_PLANNER"] = "TripPlannerAgent"`) but until `OrchestratorAgent` / `Multi-IntentOrchestrator` emit the `TRIP_PLANNER` token, it won't be selected in production traffic.
+
+`UserContextAgent`:
+- Lives at [src/travel_agency/UserContextAgent/](src/travel_agency/UserContextAgent/) with its own hosted-agent files.
+- Registered as `services.UserContextAgent` in [azure.yaml](azure.yaml).
+- Deploys with `azd deploy UserContextAgent`.
+- Router mapping is `ROUTE_TO_AGENT["USER_CONTEXT"] = "UserContextAgent"`.
+- Current behavior: answers trusted `[REQUEST IDENTITY]` questions and reports Graph profile lookup as not configured. Future work is a server-side OBO Graph client/tool for `/me`, `/me/manager`, and related least-privilege profile calls.
 
 ---
 
@@ -275,6 +283,7 @@ src/travel_agency/
 ├── _shared/evaluators/
 │   └── behavioral_adherence.yaml   Shared custom evaluator (1–5 rubric)
 ├── TripPlannerAgent/                 Hosted (container-deployed)
+├── UserContextAgent/                 Hosted (request identity + future Graph/OBO)
 ├── FlightBookingAgent/               Prompt agent + eval scaffold
 │   ├── agent.yaml
 │   ├── eval.yaml                     Suite intent (built-in evaluators + custom + tool-call-accuracy)
@@ -438,6 +447,7 @@ azd provision                            # infra (Bicep)
 azd deploy                               # both TripPlannerAgent + app service
 azd deploy app                           # just the container app
 azd deploy TripPlannerAgent              # just the hosted agent
+azd deploy UserContextAgent              # just the user-context hosted agent
 ```
 
 ---
@@ -462,6 +472,7 @@ azd deploy TripPlannerAgent              # just the hosted agent
 
 Add newest entries at the top. Include date and short bullet. Reference the section(s) updated.
 
+- **2026-07-08** — Added hosted `UserContextAgent` for authenticated requester identity and future Microsoft Graph profile lookup. Wired `USER_CONTEXT` route into `ROUTE_TO_AGENT`, hosted-agent dispatch, `azure.yaml`, and source-controlled OrchestratorAgent / MultiIntentOrchestrator definitions. Graph/OBO tools intentionally report "not configured" until delegated-token plumbing is implemented. See [Hosted agents](#hosted-agents).
 - **2026-07-06** — Expanded specialist eval scaffolding to five more prompt agents: ConsultantMatchAgent, DealAlertAgent, GeneralFAQAgent, PostBookingCocierge, and TravelInspirationAgent. Each now has `eval.yaml` plus 8 hand-authored `dataset.jsonl` rows using the shared `behavioral_adherence` rubric and built-in baseline evaluators. Remaining unscaffolded prompt agents are the routers (OrchestratorAgent, MultiIntentOrchestrator), which need route-label accuracy suites rather than answer-quality scoring. See [Evaluation scaffolding](#evaluation-scaffolding).
 - **2026-07-03** — **Grouped all TravelAgency agents under `src/travel_agency/`.** Moved 12 agent folders + `_shared/` from `src/<AgentName>/` → `src/travel_agency/<AgentName>/`. Rationale: `src/` will hold multiple Foundry projects long-term; naming the container after the Foundry project (`TravelAgency`) keeps them cleanly separated and makes the intent explicit. Updated all `project:` paths in [azure.yaml](azure.yaml), script docstrings + defaults ([apply_prompt_agents.py](server/scripts/apply_prompt_agents.py), [dump_prompt_agents.py](server/scripts/dump_prompt_agents.py) `--target` now `<repo>/src/travel_agency/`), [local_maf_orchestrator.py](server/app/handler/local_maf_orchestrator.py) comment. Eval-yaml `../_shared/evaluators/...` relative refs stay valid (sibling relationship preserved).
 - **2026-07-03** — **Consolidated all Foundry agents under `src/`.** Moved 11 prompt-agent folders + `_shared/` from `server/agents/` → `src/<AgentName>/` (PascalCase to match Foundry agent names). Registered every agent in [azure.yaml](azure.yaml) as `host: azure.ai.agent` services so `azd ai agent eval run --config eval.yaml` resolves per-agent inside each folder. Publishing prompt-agent versions still goes through `scripts/apply_prompt_agents.py` — do not run `azd deploy <PromptAgent>` for those entries.
