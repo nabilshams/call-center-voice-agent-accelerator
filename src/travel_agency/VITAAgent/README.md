@@ -62,7 +62,7 @@ This file is the seed dataset for the `vita-onroad-sop` Azure AI Search index.
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.12 (local Docker / `azd` runs use `python:3.12-slim`; Foundry deployment targets `python_3_13`)
 - An Azure AI Foundry project (`FOUNDRY_PROJECT_ENDPOINT`)
 - A `gpt-4o` or `gpt-4o-mini` model deployment (`AZURE_AI_MODEL_DEPLOYMENT_NAME`)
 
